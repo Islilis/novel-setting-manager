@@ -4,6 +4,8 @@
 
 基于 **Electron** 开发，**Windows 桌面应用**，**完全离线**（不联网、不传数据），数据以 JSON 明文件存在本地。
 
+**[⬇️ 下载最新版](https://github.com/Islilis/novel-setting-manager/releases/latest)**（安装包约 74 MB，双击安装即可）
+
 ---
 
 ## 目录
@@ -20,6 +22,8 @@
 - [开发说明](#开发说明)
 - [许可证](#许可证)
 - [联系作者](#联系作者)
+
+> 📖 为少占篇幅，「**常用快捷键 / 常见问题 / 从源码运行 / 自己打包 / 开发说明**」几节已折叠成一行 —— 点那行左边的 **▸** 展开即可；从上面目录点进去也会自动展开。
 
 ---
 
@@ -72,19 +76,19 @@
 
 ## 界面预览
 
-![书库页](docs/screenshots/home.png)
+| 书库页 | 画布与词条 |
+|---|---|
+| ![书库页](docs/screenshots/home.png) | ![画布与词条](docs/screenshots/canvas.png) |
 
-![画布与词条](docs/screenshots/canvas.png)
-
-![详情页（演示：画布背景图 + 详情页跟随画布背景）](docs/screenshots/detail.jpg)
-
-![内置帮助](docs/screenshots/help.jpg)
+| 详情页（演示：画布背景图 + 详情页跟随画布背景） | 内置帮助 |
+|---|---|
+| ![详情页（演示：画布背景图 + 详情页跟随画布背景）](docs/screenshots/detail.jpg) | ![内置帮助](docs/screenshots/help.jpg) |
 
 ---
 
 ## 下载与安装
 
-到本仓库的 **Releases** 页面下载 `小说设定管理器 Setup x.y.z.exe`：
+到本仓库的 **[Releases](https://github.com/Islilis/novel-setting-manager/releases/latest)** 页面下载 `Setup x.y.z.exe`（GitHub 的附件名只能用英文字母 / 数字，所以文件名是英文的；装出来的软件名仍是「小说设定管理器」）：
 
 1. 双击安装。安装向导里**可以改安装位置**（默认 `%LOCALAPPDATA%\Programs\小说设定管理器`）。
 2. 首次启动会在**程序目录下**自动创建 `小说库` 文件夹，并把内置的「使用教程」复制进去 —— 照着点一遍就知道怎么用。
@@ -97,6 +101,9 @@
 ---
 
 ## 从源码运行
+
+<details>
+<summary>💻 点开查看：需要 Node.js 16+，clone 后 <code>npm install</code> / <code>npm start</code></summary>
 
 需要 **Node.js 16 或更高**（建议 18 / 20 LTS）。
 
@@ -114,9 +121,14 @@ npm start
 > - 或把命令写成 `npm.cmd install`、`npm.cmd start`；
 > - 或（一次性放开）在 PowerShell 里执行 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`。
 
+</details>
+
 ---
 
 ## 自己打包
+
+<details>
+<summary>📦 点开查看：<code>npm run build</code>、打包白名单与产物说明</summary>
 
 ```bash
 npm run build      # 实际执行：set CSC_IDENTITY_AUTO_DISCOVERY=false && electron-builder
@@ -132,6 +144,8 @@ npm run build      # 实际执行：set CSC_IDENTITY_AUTO_DISCOVERY=false && ele
 > 以后若想给教程配背景图：把图放进 `小说库/背景图片缓存/`、在教程里选上，再把 `小说库/背景图片缓存/**` 加回 `build.files` 白名单 —— 否则打包后的教程里那张图会看不到。
 
 > 安装目录里会自动带上 `LICENSE.electron.txt` 与 `LICENSES.chromium.html`（Electron / Chromium 的许可证文本，由 electron-builder 自动放置）。
+
+</details>
 
 ---
 
@@ -152,6 +166,9 @@ npm run build      # 实际执行：set CSC_IDENTITY_AUTO_DISCOVERY=false && ele
 
 ## 常用快捷键
 
+<details>
+<summary>⌨️ 点开查看快捷键表</summary>
+
 | 操作 | 快捷键 |
 |---|---|
 | 复制 / 剪切 / 粘贴词条 | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` |
@@ -162,9 +179,14 @@ npm run build      # 实际执行：set CSC_IDENTITY_AUTO_DISCOVERY=false && ele
 | 框选多个词条 | 在画布空白处长按拖动（左键 / 右键都可以） |
 | 进入 / 退出子画布 | 双击卡片 / 点 `← 返回` |
 
+</details>
+
 ---
 
 ## 常见问题
+
+<details>
+<summary>❓ 点开查看：启动闪屏 / SmartScreen 拦截 / 卸载会不会删书 / 数据能不能换位置 / 有没有 macOS 版 / 怎么协作同步 / 能导入文档吗</summary>
 
 **Q：启动时界面会闪一下白色 / 很浅的灰？**
 不是白屏。窗口在出现前会先铺一层**当前主题的底色**，浅色主题下这个色是 `#f0f2f5`（非常接近白的浅灰）。实测从第一帧起就没有纯白画面，属于正常现象；深色主题下则是深色的。
@@ -190,9 +212,14 @@ npm run build      # 实际执行：set CSC_IDENTITY_AUTO_DISCOVERY=false && ele
 **Q：帮助文档在哪？**
 就装在软件里：打开软件 → 点「帮助」按钮，里面有分类说明书，并支持 `Ctrl+F` 搜索。
 
+</details>
+
 ---
 
 ## 开发说明
+
+<details>
+<summary>🛠️ 点开查看：技术栈、文件结构、安全设置、打包注意事项</summary>
 
 - **技术栈**：Electron 28 + 原生 HTML / CSS / JavaScript（无前端框架、无打包器）
 - **运行时依赖**：无（`dependencies` 为空；只用了 `electron` 与 `electron-builder` 两个开发依赖）
@@ -211,6 +238,8 @@ npm run build      # 实际执行：set CSC_IDENTITY_AUTO_DISCOVERY=false && ele
 - **提交代码前请确认**：`小说库/` 与 `问题汇总.txt` 已被 `.gitignore` 排除。
 - **建议把项目放在纯英文路径下**（如 `D:\NSM\app`）：`npm install` 与打包工具遇到含中文或空格的路径偶尔会出毛病（`小说库` 这个数据文件夹名本身不受影响）。
 
+</details>
+
 ---
 
 ## 许可证
@@ -225,4 +254,4 @@ npm run build      # 实际执行：set CSC_IDENTITY_AUTO_DISCOVERY=false && ele
 ## 联系作者
 
 - 邮箱：**ysqjl@outlook.com**
-- 问题反馈：欢迎提 [Issue](https://github.com/)（贴上报错文字或截图，说明怎么复现）
+- 问题反馈：欢迎提 [Issue](https://github.com/Islilis/novel-setting-manager/issues)（贴上报错文字或截图，说明怎么复现）
