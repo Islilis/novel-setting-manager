@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>📚 小说设定管理器</title>
+    <!-- 启动底色：在外部 CSS 之前就把底色定成"你的主题色"，避免第一帧白闪
+         （主题存在 localStorage 的 novel-tool-dark：'1' = 深色；这里提前读一次，几乎无成本） -->
+    <style>html { background: #f0f2f5; } html.pre-dark { background: #1a1a2e; }</style>
+    <script>
+      try { if (localStorage.getItem('novel-tool-dark') === '1') document.documentElement.classList.add('pre-dark'); } catch (e) {}
+    </script>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <!-- ===== 自定义标题栏 ===== -->
+    <div id="customTitlebar">
+        <div id="titlebarLeft">
+            <img id="titlebarIcon" src="icon.png" alt="" style="width:16px; height:16px; display:none; border-radius:4px; -webkit-app-region:no-drag;" />
+            <span id="titlebarAppName">📚 小说设定管理器</span>
+            <button id="titlebarTheme" title="切换深浅色模式">☀️</button>
+        </div>
+        <div id="titlebarRight">
+            <div id="titlebarTools">
+                <button id="titlebarReset" title="设置">⚙️</button>
+                <button id="titlebarHelp" title="帮助 / 打开开发者工具">❓</button>
+            </div>
+            <button id="titlebarMinimize" title="最小化" aria-label="最小化">
+                <svg width="10" height="10" viewBox="0 0 10 10"><line x1="0.5" y1="5" x2="9.5" y2="5" stroke="currentColor" stroke-width="1.1" /></svg>
+            </button>
+            <button id="titlebarMaximize" title="最大化" aria-label="最大化">
+                <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.55" y="0.55" width="8.9" height="8.9" fill="none" stroke="currentColor" stroke-width="1.1" /></svg>
+            </button>
+            <button id="titlebarClose" title="关闭" aria-label="关闭">
+                <svg width="10" height="10" viewBox="0 0 10 10"><line x1="0.7" y1="0.7" x2="9.3" y2="9.3" stroke="currentColor" stroke-width="1.1" /><line x1="9.3" y1="0.7" x2="0.7" y2="9.3" stroke="currentColor" stroke-width="1.1" /></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== 书库页（#homeView = 书库那一页） ===== -->
+    <div id="homeView">
+        <header class="toolbar">
+            <div class="brand">
+                <span>📚 书库</span>
+                <button id="btnHomeImport" title="导入 TXT/MD 为小说" style="background:none; border:none; cursor:pointer; font-size:15px; color:var(--text-secondary); padding:0 6px; transition:var(--transition);">📥 导入</button>
+                <button id="btnHomeExport" title="批量导出全部为 Markdown" style="background:none; border:none; cursor:pointer; font-size:15px; color:var(--text-secondary); padding:0 6px; transition:var(--transition);">📤 导出</button>
+            </div>
+            <div class="actions" id="homeActions">
+                <span class="stats" id="homeStats">0 本小说</span>
+                <button id="btnNewProject" class="primary">➕ 新建小说</button>
+                <button id="btnRefreshProjects">🔄 刷新</button>
+                <button id="btnOpenWorkspace">📁 打开库文件夹</button>
+                <!-- 书库页：批量删除 -->
+                <button id="btnHomeBatchMode" style="padding:6px 14px; border:none; border-radius:30px; font-size:13px; font-weight:500; cursor:pointer; background:#fee; color:#e74c3c;">🗑️ 批量删除</button>
+                <div id="homeBatchDropdown" style="display:none; position:absolute; top:100%; right:0; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:12px; box-shadow:var(--shadow); padding:12px 16px; min-width:180px; z-index:200; margin-top:4px;">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:14px; color:var(--text-primary); margin-bottom:8px;">
+                        <input type="checkbox" id="homeBatchSelectAll" style="width:16px; height:16px; accent-color:var(--primary);" /> 全选
+                    </label>
+                    <div style="display:flex; gap:8px;">
+                        <button id="homeBatchConfirmDelete" style="background:#fee; color:#e74c3c; border:none; border-radius:30px; padding:4px 16px; font-size:13px; cursor:pointer;">🗑️ 确认删除</button>
+                        <button id="homeBatchCancel" style="background:none; border:none; color:var(--text-secondary); font-size:13px; cursor:pointer;">✕ 取消</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+        <div class="home-content" id="projectGrid">
+            <div class="empty-state">
+                <div class="icon">📖</div>
+                <p>还没有小说，点击「新建小说」开始创作吧</p>
+                <div class="hint">小说保存在程序同目录下的「小说库」文件夹中</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 编辑视图 ===== -->
+    <div id="editorView" style="display:none; height:100vh; overflow:hidden; flex-direction:column; padding-top:32px;">
+        <header class="toolbar" id="mainToolbar">
+            <div class="brand">
+                <button id="btnExitProject" title="退出项目" style="background:none; border:none; font-size:16px; cursor:pointer; color:var(--text-secondary); padding:0 8px; display:flex; align-items:center; gap:4px;">📂 退出</button>
+                <span id="editorTitle">未命名项目</span>
+                <span class="file-indicator" id="fileIndicator" title="已保存" style="display:none"></span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; flex:1; max-width:520px; position:relative;">
+                <button id="jumpModeBtn" title="切换搜索模式（编号/标题 ↔ 正文）" style="background:none; border:none; cursor:pointer; font-size:15px; color:var(--text-secondary); padding:0 4px; flex-shrink:0;">🔢</button>
+                <div style="position:relative; flex-shrink:0;">
+                    <input type="text" id="jumpInput" placeholder="编号 / 标题跳转" style="width:220px; padding:6px 58px 6px 12px; border:1px solid var(--border-color); border-radius:30px; background:var(--bg-secondary); color:var(--text-primary); font-size:13px; outline:none;" />
+                    <button id="jumpClearBtn" title="清空" style="display:none; position:absolute; right:30px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:13px; color:var(--text-secondary); padding:2px 6px; border-radius:50%; line-height:1;">✕</button>
+                    <button id="jumpSearchBtn" title="搜索（点击或回车）" style="position:absolute; right:4px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:14px; color:var(--text-secondary); padding:2px 7px; border-radius:50%; line-height:1;">🔍</button>
+                </div>
+                <div id="jumpSuggestions" style="position:absolute; top:100%; left:0; width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:10px; box-shadow:var(--shadow); max-height:200px; overflow-y:auto; display:none; z-index:100;"></div>
+            </div>
+            <div class="actions">
+                <button id="btnBackLevel" title="历史路径返回（沿进入路径逐级退回）" style="background:none; border:none; font-size:16px; cursor:pointer; color:var(--text-secondary); padding:0 8px;">← 返回</button>
+                <button id="btnGoParent" title="层级返回（直接回到父词条 / 源词条层级）" style="background:none; border:none; font-size:16px; cursor:pointer; color:var(--text-secondary); padding:0 8px;">▲ 上级</button>
+                <button id="btnHomeRoot" title="回到词条主页（根词条画布）" style="background:none; border:none; font-size:16px; cursor:pointer; color:var(--text-secondary); padding:0 8px;">🏠 主页</button>
+                <button id="btnCancelMode" class="danger" title="取消所有模式">✖ 取消模式</button>
+                <button id="btnLock" title="防误操作（禁止拖拽和框选，不影响跳转）">🔒</button>
+                <button id="btnConnect" title="连接模式">🔗</button>
+                <button id="btnTrash" title="回收站">♻️</button>
+                <button id="btnAdd" class="primary">➕ 新建</button>
+                <button id="btnSave" title="保存 (Ctrl+S)">💾</button>
+            </div>
+        </header>
+
+        <!-- 主区域 -->
+        <div style="display:flex; flex:1; overflow:hidden; position:relative;" id="mainArea">
+            <div id="canvasWrapper" style="flex:1; display:flex; flex-direction:column; background:var(--bg-primary); overflow:hidden;">
+                <div id="breadcrumbBar" style="display:flex; align-items:center; gap:6px; padding:8px 24px; background:var(--bg-secondary); border-bottom:1px solid var(--border-color); font-size:14px; color:var(--text-secondary); flex-wrap:wrap; min-height:40px;">
+                    <span id="breadcrumbRoot" style="cursor:pointer; color:var(--primary);">📂 根</span>
+                </div>
+                <div id="canvas" style="flex:1; position:relative; background:var(--bg-primary); overflow-y:auto; overflow-x:hidden; cursor:default;">
+                    <div id="canvasContent" style="position:relative; min-width:100%; min-height:100%;">
+                        <svg id="connections-svg"></svg>
+                        <div class="empty-state" id="emptyState">
+                            <div class="icon">📝</div>
+                            <p>此画布下暂无词条</p>
+                            <div class="hint">点击「新建」创建第一个词条</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="detailPanel" style="display:flex; width:400px; min-width:200px; max-width:600px; background:var(--bg-secondary); border-left:1px solid var(--border-color); flex-shrink:0; flex-direction:column; overflow:hidden; position:relative; transition:background-image 0.3s;">
+                <div style="padding:16px 20px 12px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; gap:8px;">
+                    <span id="detailTitle" contenteditable="true" style="font-size:18px; font-weight:600; color:var(--text-primary); outline:none; white-space:pre-wrap; word-break:break-word; flex:1; min-width:0;">未命名</span>
+                    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                        <button id="detailFindBtn" title="查找/替换" style="background:none; border:none; cursor:pointer; font-size:15px; color:var(--text-secondary); padding:0 4px;">🔍</button>
+                        <span id="detailNumber" style="display:none;">0</span>
+                    </div>
+                </div>
+                <div id="detailFindBar" style="display:none; padding:8px 20px; border-bottom:1px solid var(--border-color); align-items:center; gap:6px; flex-shrink:0; flex-wrap:wrap;">
+                    <div style="position:relative; flex:1; min-width:80px;"><input id="detailFindInput" placeholder="查找…" style="width:100%; box-sizing:border-box; padding:4px 26px 4px 10px; border:1px solid var(--border-color); border-radius:20px; font-size:13px; outline:none; background:var(--bg-primary); color:var(--text-primary);" /><button id="detailFindClear" title="清空" style="display:none; position:absolute; right:6px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--text-secondary); font-size:12px; padding:2px 4px; line-height:1;">✕</button></div>
+                    <span id="detailFindCount" style="font-size:12px; color:var(--text-secondary); white-space:nowrap;"></span>
+                    <button id="detailFindPrev" title="上一个（Shift+回车）" style="background:var(--bg-primary); border:1px solid var(--border-color); border-radius:50%; width:26px; height:26px; cursor:pointer; font-size:13px; color:var(--text-secondary); padding:0; line-height:1; display:flex; align-items:center; justify-content:center; flex-shrink:0;">↑</button>
+                    <button id="detailFindNext" title="下一个（回车）" style="background:var(--bg-primary); border:1px solid var(--border-color); border-radius:50%; width:26px; height:26px; cursor:pointer; font-size:13px; color:var(--text-secondary); padding:0; line-height:1; display:flex; align-items:center; justify-content:center; flex-shrink:0;">↓</button>
+                    <button id="detailFindReplaceToggle" title="替换" style="background:none; border:none; cursor:pointer; font-size:13px; color:var(--text-secondary);">替换</button>
+                    <button id="detailFindClose" title="关闭" style="background:none; border:none; cursor:pointer; font-size:13px; color:var(--text-secondary);">✕</button>
+                </div>
+                <div id="detailFindReplaceRow" style="display:none; padding:0 20px 8px; border-bottom:1px solid var(--border-color); gap:6px; align-items:center; flex-shrink:0; flex-wrap:wrap;">
+                    <input id="detailReplaceInput" placeholder="替换为…" style="flex:1; min-width:80px; padding:4px 10px; border:1px solid var(--border-color); border-radius:20px; font-size:13px; outline:none; background:var(--bg-primary); color:var(--text-primary);" />
+                    <button id="detailReplaceOne" style="background:none; border:1px solid var(--border-color); border-radius:20px; padding:3px 12px; font-size:13px; cursor:pointer; color:var(--text-secondary);">替换</button>
+                    <button id="detailReplaceAll" style="background:none; border:1px solid var(--border-color); border-radius:20px; padding:3px 12px; font-size:13px; cursor:pointer; color:var(--text-secondary);">全部替换</button>
+                </div>
+                <div style="flex:1; height:0; overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column;">
+                    <div id="detailSummary" contenteditable="true" style="font-size:14px; color:var(--text-secondary); outline:none; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--border-color); min-height:30px; flex-shrink:0;"></div>
+                    <div id="detailBody" contenteditable="true" style="font-size:15px; line-height:1.8; color:var(--text-primary); outline:none; flex:1; white-space:pre-wrap;"></div>
+                </div>
+                <div id="detailStatsBar" style="flex-shrink:0; display:flex; align-items:center; gap:4px; padding:0 14px 0 0; border-top:1px solid var(--border-color); font-size:12px; color:var(--text-secondary); min-height:26px;">
+                    <button id="detailResizeHandle" title="按住向左拖动可拉宽详情页" style="background:none; border:none; border-right:1px solid var(--border-color); cursor:col-resize; color:var(--text-secondary); font-size:13px; line-height:1; padding:4px 8px 4px 10px; display:flex; align-items:center; align-self:stretch;">⇔</button>
+                    <button id="detailResetWidthBtn" title="重置详情页宽度" style="background:none; border:none; cursor:pointer; color:var(--text-secondary); font-size:14px; line-height:1; padding:2px 4px;">↺</button>
+                    <span style="flex:1;"></span>
+                    <span id="detailWordCount" title="">0 字</span>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 多选栏（词条） -->
+        <div id="multiselectBar" style="display:none; position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--bg-secondary); border-radius:14px; box-shadow:0 8px 30px rgba(0,0,0,0.2); padding:10px 24px; z-index:100; align-items:center; gap:16px; border:1px solid var(--border-color);">
+
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:14px; color:var(--text-primary);">
+                <input type="checkbox" id="multiselectCheckbox" style="width:16px; height:16px; accent-color:var(--primary);" /> 全选
+            </label>
+            <span id="multiselectCount" style="font-size:14px; color:var(--text-secondary);">已选 0 个</span>
+            <button id="multiselectDeleteBtn" style="background:#fee; color:#e74c3c; border:none; border-radius:30px; padding:6px 20px; font-size:14px; cursor:pointer;">🗑️ 删除选中</button>
+            <button id="multiselectCancelBtn" style="background:none; border:none; color:var(--text-secondary); font-size:14px; cursor:pointer;">✕ 取消</button>
+        </div>
+    </div>
+
+    <!-- ===== 模态框 ===== -->
+    <div class="modal-overlay hidden" id="modalOverlay">
+        <div class="modal" id="modalContent"></div>
+    </div>
+
+    <!-- ===== 词条回收站（只处理词条） ===== -->
+    <div class="trash-panel hidden" id="trashPanel">
+        <div class="trash-header">
+            <span>♻️ 词条回收站 <button id="btnCloseTrash" title="关闭回收站" style="background:none; border:none; cursor:pointer; color:var(--text-secondary); padding:2px 6px; border-radius:6px; font-size:13px; margin-left:6px;">✕</button></span>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button id="btnTrashToggleSelect" style="display:flex; align-items:center; gap:4px; background:none; border:none; cursor:pointer; color:var(--text-secondary); padding:2px 8px; border-radius:6px; font-size:13px;">
+                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer; color:var(--text-secondary);">
+                        <input type="checkbox" id="trashCheckboxAll" style="width:16px; height:16px; accent-color:var(--primary);" /> 全选
+                    </label>
+                </button>
+                <button id="btnTrashRestoreSelected" style="background:none; border:none; cursor:pointer; color:var(--primary); padding:2px 8px; border-radius:6px; font-size:13px;">↻ 恢复选中</button>
+                <button id="btnTrashDeleteSelected" style="color:#e74c3c; background:none; border:none; cursor:pointer; padding:2px 8px; border-radius:6px; font-size:13px;">🗑️ 删除选中</button>
+                <button id="btnEmptyTrash" style="background:none; border:none; cursor:pointer; color:var(--text-secondary); padding:2px 8px; border-radius:6px; font-size:13px;">清空全部</button>
+            </div>
+        </div>
+        <div class="trash-list" id="trashList"></div>
+    </div>
+
+    <!-- ===== 书籍回收站（独立面板，宽度与详情页一致） ===== -->
+    <div class="book-trash-panel hidden" id="bookTrashPanel">
+        <div class="trash-header">
+            <span>📚 书籍回收站 <button id="btnCloseBookTrash" title="关闭回收站" style="background:none; border:none; cursor:pointer; color:var(--text-secondary); padding:2px 6px; border-radius:6px; font-size:13px; margin-left:6px;">✕</button></span>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button id="btnBookTrashToggleSelect" style="display:flex; align-items:center; gap:4px; background:none; border:none; cursor:pointer; color:var(--text-secondary); padding:2px 8px; border-radius:6px; font-size:13px;">
+                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer; color:var(--text-secondary);">
+                        <input type="checkbox" id="bookTrashCheckboxAll" style="width:16px; height:16px; accent-color:var(--primary);" /> 全选
+                    </label>
+                </button>
+                <button id="btnBookTrashRestoreSelected" style="background:none; border:none; cursor:pointer; color:var(--primary); padding:2px 8px; border-radius:6px; font-size:13px;">↻ 恢复选中</button>
+                <button id="btnBookTrashDeleteSelected" style="color:#e74c3c; background:none; border:none; cursor:pointer; padding:2px 8px; border-radius:6px; font-size:13px;">🗑️ 删除选中</button>
+                <button id="btnEmptyBookTrash" style="background:none; border:none; cursor:pointer; color:var(--text-secondary); padding:2px 8px; border-radius:6px; font-size:13px;">清空全部</button>
+            </div>
+        </div>
+        <div class="trash-list" id="bookTrashList"></div>
+    </div>
+
+
+    <!-- ===== 帮助弹窗（独立于主渲染逻辑，即使界面卡死也能打开） ===== -->
+    <div class="modal-overlay hidden" id="helpOverlay">
+        <div class="modal glass" id="helpContent" style="max-width:600px;">
+            <div class="modal-header">
+                <h2>❓ 帮助与快捷键</h2>
+                <button id="helpRestart" title="重启软件（界面卡住时也能用；会先保存）" style="box-sizing:border-box; margin-left:auto; margin-right:40px; background:none; border:1px solid var(--border-color); color:var(--text-secondary); border-radius:30px; height:28px; padding:0 18px; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; line-height:1; white-space:nowrap;">🔄 重启软件</button>
+                <button type="button" class="close-btn" id="helpClose">✕</button>
+            </div>
+            <!-- 正文区：整个帮助里唯一会滚的地方。路径开关那排、搜索框（悬浮）、正文全在这块里 ——
+                 ⚠ 搜索框必须是 sticky（悬浮）而不是一条"不参与滚动的工具条"：工具条会白吃掉一行的高度，
+                   正文的可视高度就变小了；悬浮则是正文从它下面穿过，一分高度都不占。
+                 ⚠ 它自己也不铺任何底色（白底 / 毛玻璃 / ::before 垫层都不要 —— 铺了就是横贯弹窗的一条色带，
+                   也就是以前那条白带）；能盖住底下正文的，只有搜索框和「全部展开」这两颗控件自己的实底药丸。 -->
+            <div class="modal-body" id="helpScrollBody" style="font-size:14px; line-height:1.8; color:var(--text-primary);">
+                <div style="padding-bottom:12px; border-bottom:1px solid var(--border-color); display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:14px;">
+                    <label style="display:flex; align-items:center; gap:6px; font-size:14px; height:28px; line-height:1; cursor:pointer; margin:0;">
+                        <input type="checkbox" id="helpShowPath" style="width:16px; height:16px; accent-color:var(--primary);" /> 显示完整路径（面包屑）
+                    </label>
+                    <button id="helpOpenDevTools" style="box-sizing:border-box; margin-left:6px; background:var(--primary); color:#fff; border:none; border-radius:30px; height:28px; padding:0 18px; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; line-height:1; white-space:nowrap;">🔧 打开开发者工具</button>
+                </div>
+                <!-- 帮助搜索：边打边筛，命中的小节自动展开（放在"开发者工具"下面，因为上面那排更常用）。
+                     它是 sticky（悬浮）的 —— 往下翻正文时它和右边的「全部展开」浮在正文上方、正文从它们下面
+                     穿过，所以不占正文高度；中间留白保持透明，遮住正文的只有这两颗控件自己 -->
+                <div id="helpSearchBar" style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                    <div style="position:relative; flex:1;"><input id="helpSearchInput" type="text" placeholder="搜索帮助内容（如：裁剪 / 缓存 / 撤销 / 透明）" style="width:100%; box-sizing:border-box; height:30px; padding:0 34px 0 14px; border:1px solid var(--border-color); border-radius:30px; background:var(--bg-primary); color:var(--text-primary); font-size:13px; outline:none;" /><button id="helpClearBtn" title="清空搜索" style="display:none; position:absolute; right:6px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:13px; padding:2px 6px; line-height:1;">✕</button></div>
+
+                    <button id="helpToggleAll" style="box-sizing:border-box; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-secondary); border-radius:30px; height:28px; padding:0 16px; font-size:13px; cursor:pointer; white-space:nowrap;">全部展开</button>
+                </div>
+                <div id="helpNoResult" style="display:none; font-size:13px; color:var(--text-secondary); margin:-4px 0 10px;">没有匹配的内容，换个词试试</div>
+                <details>
+                <summary>📖 名词表（一个东西一个名字）</summary>
+                <ul style="padding-left:20px; margin-bottom:16px;">
+                    <li><strong>书库页</strong> — 打开软件看到的第一页，列着所有小说。左上角招牌写「📚 书库」，旁边的「📥 导入 / 📤 导出」都属于书库页。（以前叫过"首页 / 书籍页 / 小说列表"，现在统一叫书库页。）</li>
+                    <li><strong>小说库</strong> — 磁盘上存小说的文件夹，文件夹名字就叫 <code>小说库</code>，书库页工具栏的「📁 打开库文件夹」直接打开。三个"书"的分工：<b>书库</b>＝所有小说的总和，<b>书库页</b>＝列着所有小说的那一页，<b>小说库</b>＝文件夹。</li>
+                    <li><strong>词条主页</strong> — 一本书最上面的画布（<b>根词条</b>所在层），每本书各有一个。书里工具栏那颗 <strong>🏠 主页</strong>（悬停提示写"回到词条主页（根词条画布）"）就是回到这里。</li>
+                    <li><strong>画布</strong> — 放置词条的区域，可缩放 / 框选 / 拖动。进到某个词条里，看到的就是它的画布；「← 返回」按进出的路径逐级退，「▲ 上级」直接回上一层。</li>
+                    <li><strong>词条</strong> — 画布上的方块，也叫<b>卡片</b>。单击看详情页，双击进入它的下一层；删除一个词条，它下面的子词条一起进回收站，<b>根词条不能删</b>。</li>
+                    <li><strong>节点</strong> — 不是术语，只是<b>新建时的默认标题</b>：新建词条时标题留空，卡片就叫「<b>新节点</b>」，随手改成你要的名字即可。界面和帮助里其他地方一律说「词条」。</li>
+                    <li><strong>详情页</strong> — 显示选中词条标题 / 摘要 / 正文的区域，宽度可拖。词条的背景色 / 背景图、文字颜色都在里面改。</li>
+                </ul>
+                <p style="font-size:13px; color:var(--text-secondary); line-height:1.8; margin:0 0 16px;">设置分两类，都在 <b>⚙️ 设置</b> 里：<b>🖥️ 全局设置</b>＝所有书共用（自动保存、主题、词条默认显示方式…）；<b>这本书</b>＝只动当前打开的那本书（初始化这本书、重置本书样式…）。分界线和两处"会连带动全局项"的例外，见下面的「⚙️ 设置」与「🖥️ 全局设置与初始化」。</p>
+                </details>
+                <details>
+                <summary>⌨️ 快捷键</summary>
+                <ul style="padding-left:20px; margin-bottom:16px;">
+                    <li><code>Ctrl+A</code> — 全选当前页的所有词条（在输入框或详情正文里则是全选文字）</li>
+                    <li><code>Ctrl+F</code> — 详情页内查找 / 替换</li>
+                    <li><code>Ctrl+S</code> — 保存当前项目</li>
+                    <li><code>Ctrl+N</code> — 新建词条</li>
+                    <li><code>Ctrl+C / Ctrl+V</code> — 复制 / 粘贴词条（支持多选，<b>多选复制按编号顺序放进剪贴板</b>，粘贴也按这个顺序依次落位；只在画布区域内生效，在工具栏/详情页里是普通的复制文字）</li>
+                    <li><code>Ctrl+X</code> — 剪切词条，相当于「移动」：到目标画布 <code>Ctrl+V</code> 即可；不想移动了按 <code>Ctrl+Z</code> 撤回</li>
+                    <li><code>Ctrl+Z</code> — 撤销（删除、移动、换色、连接等）</li>
+                    <li><code>Enter</code> — 确认创建 / 跳转</li>
+                    <li><code>Ctrl+Enter</code> — 摘要/正文中换行</li>
+                    <li><code>Delete</code> — 删除选中的词条</li>
+                    <li><code>Esc</code> — 关闭弹窗 / 退出模式 / 退出词条或小说页面</li>
+                    <li>单击卡片 — 查看详情；双击卡片 — 进入子画布</li>
+                    <li>长按空白处拖动（左键或右键）— 框选多个词条（右键菜单可删除/换色/排列）</li>
+                </ul>
+                </details>
+                <details>
+                <summary>🧰 工具栏（窗口顶部工作区）</summary>
+                <ul style="padding-left:20px; margin-bottom:16px;">
+                    <li><strong>📂 退出</strong> — 退出当前项目，回到书库页（会先保存）</li>
+                    <li><strong>← 返回</strong> — 沿进入路径逐级退回；<strong>▲ 上级</strong> — 直接回到父词条 / 源词条层级；<strong>🏠 主页</strong> — 回到词条主页（根词条画布）</li>
+                    <li><strong>✖ 取消模式</strong> — 一次性退出所有模式（多选 / 连接 / 防误操作等）</li>
+                    <li><strong>🔒 防误操作</strong> — 禁止<b>拖拽</b>和<b>框选</b>词条（防止手滑挪动布局），<b>不影响跳转</b>；本次运行内对这本书一直有效，重启软件后重置</li>
+                    <li><strong>🔗 连接</strong> — 连接模式：点两个词条创建连接线；再次点击它们或右键连接线可删除</li>
+                    <li><strong>♻️ 回收站</strong> — 恢复或永久删除已移除的词条</li>
+                    <li><strong>➕ 新建 / 💾 保存</strong> — 新建词条 / 手动保存</li>
+                    <li><strong>🔢 / 📄 搜索框</strong> — 左边图标切换「编号·标题跳转」与「正文搜索」，回车跳转；<b>右边 ✕ 一键清空</b>（帮助弹窗里的搜索框同样有 ✕，而且它<b>悬浮在正文上方</b>、正文从它下面穿过 —— 展开小节往下翻时随时能改词，它也不占正文的高度）</li>
+                    <li><strong>🔄 重启软件</strong> — 在帮助弹窗右上角、标题栏那个位置：点它会先保存，然后重启；<b>重启后会自动回到你重启前待的地方</b>（那本书 + 那个画布层级 + 滚动位置 + 选中的词条）。<b>手动关掉软件再打开则不会自动进入</b>，始终从书库页开始</li>
+                </ul>
+                </details>
+                <details>
+                <summary>🖱️ 右键菜单</summary>
+                <ul style="padding-left:20px; margin-bottom:16px;">
+                    <li><strong>编辑词条</strong> — 改标题、摘要、正文；引用词条还能填「别名」（最多 20 字）</li>
+                    <li><strong>换颜色 / 批量换色</strong> — 改卡片背景色、文字颜色；也能换成<b>图片背景</b>（切到「背景图片」页，可选 铺满 / 完整 / 拉伸）</li>
+                    <li><strong>复制 / 剪切</strong> — 复制可以反复粘贴；剪切是「移动」，粘一次就结束（<code>Esc</code> 取消、颜色恢复）</li>
+                    <li><strong>新建子词条</strong> — 直接进入该词条并在里面新建（之后可用「← 返回」退回来）</li>
+                    <li><strong>锁定内部 / 锁定本页 / 解除锁定</strong> — 让该页不参与<b>自动</b>排列（缩放窗口、初始化），手动排列不受影响，卡片上会显示 📌</li>
+                    <li><strong>删除</strong> — <b>直接删除</b>（不弹确认）；可在回收站找回，也能 <code>Ctrl+Z</code> 撤回</li>
+                    <li><strong>粘贴 / 撤销</strong> — 画布空白处右键可用（撤销等同 Ctrl+Z）</li>
+                    <li><strong>按编号排列 / 按位置排列</strong> — 前者按编号重排；后者只按当前坐标摆整齐，<b>不改变相互顺序</b></li>
+                    <li><strong>批量编辑 / 批量重命名 / 排列选中</strong> — 多选后右键：统一改内容、按序号批量命名（输入 <code>第{n}章</code>，或直接输入 <b>第五章</b> 自动从第五章递增；<b>每次都是空白开始</b>，不会记住上次用过的模板 / 起始序号）、把选中的整齐排到下方</li>
+                    <li><strong>画布背景 / 详情页背景 / 导入文件 / 导出 Markdown</strong> — 都在画布空白处的右键菜单里</li>
+                </ul>
+                </details>
+                <details>
+                <summary>🎨 画布与详情页</summary>
+                <ul style="padding-left:20px; margin-bottom:16px;">
+                    <li>单击卡片 — 查看详情；<b>双击卡片</b> — 进入子画布；长按空白拖动（左键或右键）— 框选多个词条</li>
+                    <li><strong>🧩 子词条数量</strong> — 卡片下方显示它有多少个子词条（移动时不显示）</li>
+                    <li><strong>⧉ 复制编号</strong> — 编辑词条时，可直接复制其编号</li>
+                    <li><strong>🔢 字数</strong> — 详情页底部与编辑词条弹窗会显示字数统计。换行与空格不计入</li>
+                    <li><strong>🔗 引用信息 / 别名</strong> — 编辑引用词条时会显示它引用自哪个词条、被引用了多少次；可填「别名」（最多 20 字）优先显示，不填则显示源词条标题（最多 10 字，源词条改名后会跟着变）</li>
+                    <li><strong>✂️ 剪切 / 粘贴</strong> — <code>Ctrl+X</code> 后词条半透明（内容进剪贴板）→ 到目标画布 <code>Ctrl+V</code> 完成「移动」；剪切是<b>单次</b>的（粘一次即结束）；按 <code>Esc</code> 或 <code>Ctrl+Z</code> 取消（颜色恢复）。复制 <code>Ctrl+C</code> 可反复粘贴</li>
+                    <li><strong>🖱️ 拖放移动文本</strong>（详情页的正文 / 标题 / 摘要里都能用）— <b>选中一段文字 → 按住左键拖到目标位置松手</b>，这段文字就<b>移动</b>过去了；<b>按住 <code>Ctrl</code>（或 <code>Alt</code>）拖 = 复制</b>。拖动过程中会有一根<b>竖线指示落点</b>（贴在插入位置，<b>空行也能自动贴到该行最前面</b>）；松手后这段文字<b>保持选中</b>、竖线在末尾闪一下再消失，按 <code>Ctrl+Z</code> 可撤销（提示「移动文字 / 复制文字」）。<br>
+                        · <b>可以跨块</b>：正文里的字能直接拖到标题 / 摘要（反过来也行），两边都会保存；<br>
+                        · <b>拖到详情页的上 / 下边缘会自动滚动</b>（越靠边滚得越快），所以能拖到当前看不见的位置；<br>
+                        · 拖到"选中文字自己内部"不算有效落点（此时不显示竖线）；<br>
+                        · 从别的软件（记事本 / 浏览器 / 别的窗口）<b>把文字或链接拖进正文</b>，会按<b>纯文本</b>插到落点（链接只会变成一段文字，<b>不会跳转</b>）；<br>
+                        · 拖 <code>TXT</code> / <code>MD</code> <b>文件</b>进窗口仍然是「导入成词条树」，不受影响</li>
+                    <li><strong>↩ 撤销</strong> — <code>Ctrl+Z</code> 或右键菜单；<b>换色 / 清除背景（词条·画布·详情页）/ 重置样式 / 初始化</b>都能撤回；<b>退出书籍会清空撤销记录</b>（避免在别的书里误撤回上一本的修改）</li>
+                    <li><strong>⇔ 详情页宽度</strong> — 详情页底部左侧的 ⇔ 可拖动调整宽度（向左拖变宽），旁边 ↺ 一键复位；宽度会被记住（也能在 ⚙️ 设置 →「🖥️ 全局设置」里选 300 / 400 / 480 / 560 的预设）</li>
+                    <li><strong>跟随画布背景</strong> — 详情页背景面板最上面的开关：勾上后详情页不再单独设背景，而是<b>用画布那张背景图</b>，并且这张图会<b>一直铺到详情页那边</b>（画布 + 详情页连成一张，"延伸过去一部分"的观感；此时下面的颜色 / 图片 / 显示方式会灰掉，统一去画布背景里改）。不勾 = 详情页自己一套背景（和以前一样）</li>
+                    <li><strong>卡片底色透明</strong> — 词条右键「换颜色」→「背景图」页里的小开关（仅对词条背景生效）：<b>默认卡片底色是白的</b>，背景图如果有<b>透明区域</b>（PNG）或没铺满（"完整显示"），就会露出一圈白边；勾上后底色透明，直接透出画布背景。<b>选了图片背景会自动打开，换成纯色背景会自动关掉</b>；没选图也能手动开（卡片会变成"只见文字和边框的透明块"）</li>
+                    <li><strong>🎨 自定义颜色 / 取色器</strong> — 颜色块下面的取色器是<b>系统取色器</b>：打开它以后，<b>在窗口顶部那一排点 RGB / HEX / HSL 就能切换输入方式</b>（想把颜色写成 <code>#4a90d9</code> 这种就切到 HEX；右边那串 <code>#xxxxxx</code> 就是当前值 —— <b>它本身是个输入框</b>：可以直接选中 / 复制 / 粘贴 / 剪切，改完按<b>回车生效</b>（系统取色器那个小窗口里的输入框不吃剪贴板，所以想粘贴颜色值请用这一串））。另外 ⚙️「🖥️ 全局设置 → 词条默认文字颜色」里还有一排常用色块（最左边是内置默认色、最右边是自定义选色），<b>它旁边的颜色值输入框同样能复制 / 粘贴</b></li>
+                    <li><strong>背景图缓存</strong> — 所有背景图都存在「小说库 / 背景图片缓存」，<b>整个书库共用</b>；在「背景图」页能看到占用（<code>缓存 N 张 · X MB</code>）并一键「🧹 清理缓存」，只会删掉<b>任何书都没用到</b>的图片</li>
+                </ul>
+                </details>
+                <details>
+                <summary>✂️ 背景图裁剪（词条 / 画布 / 详情页）</summary>
+                <ul style="padding-left:20px; margin-bottom:16px;">
+                    <li><strong>在哪打开</strong> — 词条右键「换颜色」→「背景图」页点 <code>✂️ 裁剪</code>；画布空白处右键「画布背景」→「背景图」页；详情页「详情页背景」→「背景图」页</li>
+                    <li><strong>裁剪框</strong> — 框里拖动 = 移框；<b>整条边、四个角都能拉大拉小</b>（不用非要点边中间那个小方块）</li>
+                    <li><strong>图片</strong> — 框外拖动 = 挪图片；滚轮 或 <code>➕</code><code>➖</code> = 缩放图片</li>
+                    <li><strong>快捷键</strong> — <code>Shift</code> 等比缩放、<code>Ctrl</code> 从中心缩放、<code>Alt</code>+拖动 = 重新拉一个框</li>
+                    <li><strong>比例</strong> — 自由 / 1:1 / 自适应。<b>自适应会根据选中“词条/画布/详情页”的当前比例自动调整选框</b>。此外，开启详情页背景面板中「跟随画布背景」时，自适应中会出现"画布 + 详情页"的全屏比例</li>
+                    <li><strong>打开时</strong> — 和「🔳 原图」一样：图片完整显示 + 框刚好框住整张图。所以什么都不改直接点「裁剪并应用」＝原图本身（像素一点不差、不会白裁掉一块）。图片比例和裁剪区对不上时，上下或左右会留一点舞台底色，这是正常的</li>
+                    <li><strong>🖼️ 居中最大 / 🔳 原图</strong> — <b>居中最大</b>：把图片放大到刚好铺满裁剪区（结果＝裁掉一部分）；<b>选着比例时</b>（比如「自适应·词条」「1:1」）框还会按这个比例<b>在图片里居中放到最大</b>；比例是「自由」时框＝图片 ∩ 裁剪区（就裁你现在看到的这一块）。两种情况都<b>不锁比例</b>，接着拉边角还是自由的。<b>🔳 原图</b>：图片完整显示 + 框<b>刚好框住整张图</b>＝刚打开时的状态；想按原图的形状框一小块，点完它按住 <code>Shift</code> 拉角就行</li>
+                    <li><strong>🔒 锁定裁剪框（弹窗右侧的开关，默认开）</strong> — <b>锁定</b>：① 裁剪框只能在<b>图片里</b>活动，拖不出图片（结果不会有透明块）；② 图片也<b>不会被拖出裁剪区</b>，缩小到最小＝<b>整张图刚好显示全</b>（图片比例和裁剪区对不上时两边留一点空白，正常；但不会像以前那样一直缩下去）。拉边角撞到图片边界时框会<b>整体等比收回来</b>，比例锁不会被挤变形。<b>解除锁定</b>：框可以<b>框到图片外面</b>，框外那部分在结果里是<b>透明的</b>（想做"详情页标题那条不要图、其余有图"就用这个），图片也能随便拖、随便缩 —— 但同样不是无限缩：缩到"结果刚好 7000px（结果最长边上限）"就停住并提示你（以前没这个下限：缩到最小再应用一次，图片内容就被压小一圈，可以无限缩下去）。也能在 ⚙️ 设置 →「🖥️ 全局设置」里改（那一块自带「恢复默认」）；<b>🪟 初始化这本书</b>勾着「同时把全局设置恢复默认」时会把它恢复成默认的「锁定」</li>
+                    <li><strong>图片不会被拖没</strong> — 解除锁定时也至少留一条边在裁剪区里（锁定时根本拖不出去）</li>
+                    <li><strong>导出格式</strong> — 框里<b>有透明像素</b> → PNG（透明原样保住）；整块都是不透明的图 → JPEG（体积小）。所以把上一轮裁出来的透明区再裁一次，透明还是透明，<b>不会被填成白底</b>。结果最长边上限 <b>7000px</b>：超了只把<b>多出来的透明边裁掉</b>，图片内容（原图像素）<b>不会被缩小</b>；只有原图自己超过 7000px 时才整体缩一点（弹窗里会写着）</li>
+                    <li><strong>安全</strong> — 裁剪只<b>新增</b>一张图到背景图片缓存，原图和以前用过的图都不会被改写（没有任何书在用的旧图可随「🧹 清理未引用的背景图片」回收；<b>「🪟 初始化这本书」之后会自动问一次</b>要不要顺手清理，点「保留」就什么都不动）</li>
+                </ul>
+                </details>
+                <details>
+                <summary>⚙️ 设置（标题栏右上角齿轮）</summary>
+                <ul style="padding-left:20px; margin-bottom:16px;">
+                    <li><strong>🖥️ 全局设置（⚙️ 面板最上面、默认收起的一块，对所有书生效）</strong> — 这一块里的项都是"改一次、每本书都跟着变"；具体哪几项、每一项的「恢复默认」和底部的「↩ 恢复全部默认设置」怎么用，下面「🖥️ 全局设置与初始化」一节列了<b>一张对照表</b>，这里不重复。只单独提醒：<b>自动保存间隔</b>有 0.3 / 1.5 / 3 / 8 秒四档；想改成手动保存，把「自动保存」右边的小开关关掉（关掉后按 <code>Ctrl+S</code> 或点工具栏 💾 保存；退出项目 / 关闭软件时，如有未保存的改动，会弹窗询问是否保存）</li>
+                    <li><strong>💾 立即备份当前书</strong> — 复制一份到「小说库 / 备份」，文件名带时间戳</li>
+                    <li><strong>词条默认显示方式（在「🖥️ 全局设置」里）</strong> — <b>词条背景图默认显示方式</b>、<b>词条粘贴位置</b>、<b>词条默认文字颜色</b>。改完会记住：新建词条、以及<b>没单独设过文字颜色</b>的词条都会用它；被「重置 / 初始化」带到时怎么处理，见下节的"例外"</li>
+                    <li><strong>🧹 清理未引用的背景图片</strong> — <b>扫整个书库</b>（所有书 + 书籍回收站）：只有"任何书都没用到"的图片才会被删；同时会列出<b>失效引用</b>（书里指向的图片已经不在了，那些位置显示不出背景，需要重新选图）</li>
+                    <li><strong>📂 查看缓存文件夹</strong> — 背景图片都存在「小说库 / 背景图片缓存」里，<b>整个书库共用这一个目录</b>（随书一起走，换电脑直接拷「小说库」就行）</li>
+                    <li><strong>✂️ 裁剪 / 🧹 清理缓存</strong> — 词条颜色浮窗和详情页面板的「背景图」页里也各有一份：裁剪当前这张背景图、看缓存占用并一键清理（打开文件夹统一放在这里）</li>
+                    <li><strong>🧽 临时文件自动清理</strong> — <b>打开 / 关闭软件时</b>自动删掉程序目录里调试遗留的临时脚本与日志（<code>_test*</code>、<code>_chk*</code>、<code>_tmp*</code>、<code>_b数字.txt</code>、<code>_*.log</code> 等），<b>绝不会碰「小说库」</b>里的任何文件</li>
+                    <li><strong>🎨 重置本书词条样式</strong> — 词条颜色按系统配色重新分配，文字颜色与背景图恢复默认；<b>⚠️ 会连带把全局的「词条默认文字颜色」一起恢复</b>（原因见下节"例外②"）</li>
+                    <li><strong>📄 重置本书详情页样式</strong> — 详情页的背景、文字颜色恢复默认；<b>⚠️ 详情页宽度是全局的，这一步也会把它恢复成 400px</b>（原因见下节"例外①"）</li>
+                    <li><strong>🔗 清空所有连接线</strong> — 删除这本书里的全部连接线（词条本身不受影响）</li>
+                    <li><strong>🪟 初始化这本书</strong> — 画布、词条、详情页恢复默认样式，清空回收站，取消所有连接线，清除所有模式，解除所有单页锁定，重新编号并排列词条（不会删除正常词条）。确认框里有一个默认勾着的「<b>同时把全局设置恢复默认</b>」，勾与不勾各是什么结果，见下节</li>
+                    <li><strong>↩ 恢复上次重置</strong> — 回退到某次重置之前的状态，最多保留最近 10 次。<b>记录只属于当前这本书</b>：换书 / 打开别的书时会自动清空（不会再出现"把这本书变成另一本书重置前的样子"）</li>
+                </ul>
+                </details>
+
+                <!-- 🖥️ 全局设置 / 初始化：哪些是"所有书通用"、哪些是"每本书自己的" -->
+                <details id="helpGlobalSection">
+                    <summary>🖥️ 全局设置与初始化（哪些设置是所有书通用的）</summary>
+                    <p style="font-size:13px; color:var(--text-secondary); line-height:1.8; margin-bottom:10px;">
+                        ⚙️ 设置面板最上面那块「<b>🖥️ 全局设置 · 对所有书生效</b>」是<b>收起来的</b>：点一下标题展开。里面每一项都是<b>改一次、每本书都跟着变</b>，和"这本书的内容"分开。标题下面那行小字会一直显示当前值，<b>收起也能一眼看到现在是哪样</b>。
+                    </p>
+                    <ul style="padding-left:20px; line-height:1.9; font-size:13px;">
+                        <li><b>全局（所有书共用）</b>：自动保存（开关 + 间隔）、主题（深 / 浅色）、词条背景图默认显示方式、词条粘贴位置、词条默认文字颜色、详情页宽度、🔒 锁定裁剪框 —— <b>共 7 项</b>，和设置面板里那一块一一对应</li>
+                        <li><b>每本书自己的</b>：词条内容 / 颜色 / 文字颜色 / 背景图 / 别名、画布背景、详情页背景与文字颜色、连接线、回收站、单页与内部布局锁定（📌）、书的 🔒 交互锁</li>
+                    </ul>
+                    <p style="font-size:13px; color:var(--text-secondary); line-height:1.8; margin-bottom:8px;">
+                        <b>恢复默认</b>：每一项旁边都有一个小「恢复默认」；整块底部还有「↩ 恢复全部默认设置」（会再确认一次）。这些<b>只动设置本身，不会碰任何一本书的内容</b>。
+                    </p>
+                    <p style="font-size:13px; color:var(--text-secondary); line-height:1.8; margin-bottom:8px;">
+                        <b>🪟 初始化这本书</b>：确认框里有一个<b>默认勾着</b>的「同时把全局设置恢复默认」——勾着就是老习惯（这本书 + 全局设置一起回默认）；<b>取消勾选则只重置这本书</b>，上面那些全局设置一根汗毛都不动。（「↩ 恢复上次重置」只管书里的数据，全局设置不在还原范围内。）
+                    </p>
+                    <p style="font-size:13px; color:var(--text-secondary); line-height:1.8; margin-bottom:8px;">
+                        设置面板下半部分的「重置 / 初始化」<b>基本上只动这本书</b>：上面那块「🖥️ 全局设置」里的项<b>不在这里重置</b>，要改就去上面改。<br>
+                        ⚠️ 例外只有<b>两处</b>（设置面板里也在各按钮下面的小字里写明了）：<br>
+                        ① 「📄 重置本书详情页样式」——<b>详情页宽度是全局的</b>，它也会把宽度恢复成 400px（所有书共用）；<br>
+                        ② 「🎨 重置本书词条样式」——会把<b>词条默认文字颜色</b>（全局）一起恢复默认（别的书也跟着变）。
+                    </p>
+                    <p style="font-size:13px; color:var(--text-secondary); line-height:1.8;">
+                        📌 这些设置记在<b>这台电脑的程序配置里</b>（不写进书文件）：所以换电脑时拷走「小说库」不会带走它们，在新机器上重设一次即可（想从头来就点「↩ 恢复全部默认设置」）。
+                    </p>
+                </details>
+
+                <!-- 作者署名 -->
+                <div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border-color); font-size:13px; color:var(--text-secondary); line-height:1.8;">
+                    <p style="font-weight:600; color:var(--text-primary); margin-bottom:2px;"><img src="icon-small.png" alt="" onerror="this.style.display='none'; var t=this.nextElementSibling; if (t) t.style.display='inline';" style="width:18px; height:18px; vertical-align:-3px; border-radius:4px; margin-right:6px;" /><span style="display:none;">📚 </span>小说设定管理器 v1.2.0</p>
+                    <p>🧑‍💻 作者：ysqjl</p>
+                    <p>🛠️ 技术支持：deepseek</p>
+                    <p>✉️ 联系邮箱：ysqjl@outlook.com</p>
+                    <p>📅 2026-09-19 首次公开发布</p>
+                    <p style="opacity:0.75; margin-top:4px;">© 2026 ysqjl · 遵循 MIT 协议</p>
+                    <p style="margin-top:6px;"><a href="#" onclick="showLicenseModal(); return false;" style="color:var(--primary); text-decoration:none;">📜 开源许可</a><span style="opacity:0.7;"> — MIT 协议与第三方组件</span></p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ===== 通用颜色悬浮窗（词条/画布背景共用，可拖动） ===== -->
+    <div id="colorPopup" class="detail-bg-panel hidden">
+        <div class="detail-bg-header" id="colorPopupHeader">
+            <span id="colorPopupTitle">🎨 选择颜色</span>
+            <button id="btnCloseColorPopup" title="关闭">✕</button>
+        </div>
+        <div class="detail-bg-body">
+            <div id="colorPopupTabs" style="display:none; gap:6px; margin-bottom:10px;">
+                <button id="colorPopupBgTab" class="dbg-btn primary" style="padding:4px 14px;">背景颜色</button>
+                <button id="colorPopupTextTab" class="dbg-btn" style="padding:4px 14px;">文字颜色</button>
+                <button id="colorPopupImageTab" class="dbg-btn" style="padding:4px 14px;">背景图</button>
+            </div>
+            <div id="colorPopupColors" style="display:flex; flex-wrap:wrap; gap:8px; padding:4px 0 8px;"></div>
+            <label id="colorPopupCustomLabel" style="font-size:13px; font-weight:600; color:var(--text-secondary); display:block; margin-bottom:4px;">自定义颜色</label>
+            <div id="colorPopupCustomRow" style="display:flex; align-items:center; gap:10px; padding:4px 0 8px;">
+                <input type="color" id="colorPopupPicker" value="#ffffff" style="width:48px; height:36px; border:none; cursor:pointer; background:none;" />
+                <input type="text" id="colorPopupHex" class="color-hex" spellcheck="false" autocomplete="off" title="颜色值：可以直接改 / 粘贴，回车生效" value="#ffffff" />
+            </div>
+            <div id="colorPopupExtra" style="display:none; gap:8px; margin-top:4px; flex-wrap:wrap;">
+                <!-- 背景图页顶部：「背景图操作」小标题 + 一行工具（✂️ 裁剪 在左，📂 缓存 偏右但不贴边，
+                     中间空开一段，一眼看出这是两件不相干的功能） -->
+                <div id="colorPopupToolRow" style="display:none; width:100%; gap:8px; flex-wrap:wrap;">
+                    <div style="width:100%; font-size:12px; color:var(--text-secondary);">背景图操作</div>
+                    <button id="colorPopupCrop" class="dbg-btn">✂️ 裁剪</button>
+                    <button id="colorPopupCleanCache" class="dbg-btn" style="margin-left:auto; margin-right:24px;" title="查看/清理缓存图片">🧹 清理缓存</button>
+                    <div id="colorPopupCacheInfo" style="width:100%; font-size:12px; color:var(--text-secondary);">缓存信息读取中…</div>
+                </div>
+                <div id="colorPopupFitWrap" style="display:none; width:100%; margin:0;">
+                    <div style="font-size:12px; color:var(--text-secondary); margin-bottom:4px;">背景图显示方式（仅选中词条）</div>
+                    <!-- 按钮和「卡片底色透明」在同一行：有位置就并排靠右，挤了就紧跟"拉伸填充"后面换行 -->
+                    <div id="colorPopupFitBtns" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;"></div>
+                </div>
+                <!-- 「🖼️ 选择图片 / 清除」始终留在面板最底部（和背景颜色 / 文字颜色两页的位置一致） -->
+                <button id="colorPopupImage" class="dbg-btn primary">🖼️ 选择图片</button>
+                <button id="colorPopupClear" class="dbg-btn">清除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 详情页背景浮动面板（可拖动、不阻塞交互） ===== -->
+    <div id="detailBgPanel" class="detail-bg-panel hidden">
+        <div class="detail-bg-header" id="detailBgHeader">
+            <span>🎨 详情页背景</span>
+            <button id="btnCloseDetailBgPanel" title="关闭">✕</button>
+        </div>
+        <div class="detail-bg-body">
+            <!-- 详情页背景总开关：勾上 = 整块跟随画布背景（画布那张图铺到"画布 + 详情页"整块区域，左右连成一张） -->
+            <label id="detailBgLinkRow" style="display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:13px; color:var(--text-secondary); cursor:pointer; user-select:none;">
+                <input type="checkbox" id="detailBgLinkChk" style="cursor:pointer;" />
+                <span>跟随画布背景</span>
+            </label>
+            <div id="detailBgLinkHint" style="display:none; font-size:12px; color:var(--text-secondary); margin:-4px 0 10px; line-height:1.6;">已跟随画布背景（要改去画布背景里改）</div>
+            <div id="detailBgTabs" style="display:flex; gap:6px; margin-bottom:10px;">
+                <button id="detailBgTabBg" class="dbg-btn primary" style="padding:4px 14px;">背景颜色</button>
+                <button id="detailBgTabText" class="dbg-btn" style="padding:4px 14px;">文字颜色</button>
+                <button id="detailBgTabImage" class="dbg-btn" style="padding:4px 14px;">背景图</button>
+            </div>
+            <div id="detailBgColorTitle" style="font-size:13px; font-weight:600; color:var(--text-secondary); margin-bottom:6px;">选择颜色</div>
+            <div id="detailBgColors" style="display:flex; flex-wrap:wrap; gap:8px; padding:4px 0 8px;"></div>
+            <label id="detailBgCustomLabel" style="font-size:13px; font-weight:600; color:var(--text-secondary); display:block; margin-bottom:4px;">自定义颜色</label>
+            <div id="detailBgCustomRow" style="display:flex; align-items:center; gap:10px; padding:4px 0 8px;">
+                <input type="color" id="dbgColorPicker2" value="#ffffff" style="width:48px; height:36px; border:none; cursor:pointer; background:none;" />
+                <input type="text" id="dbgColorHex2" class="color-hex" spellcheck="false" autocomplete="off" title="颜色值：可以直接改 / 粘贴，回车生效" value="#ffffff" />
+            </div>
+            <!-- 背景图页的顶部工具行：「✂️ 裁剪」在左，「📂 缓存」靠右（margin-left:auto 撑开一段），
+                 中间留空是为了让人一眼看出这是两件不相干的功能 -->
+            <div id="detailBgToolRow" style="display:none; gap:8px; margin-top:4px; flex-wrap:wrap;">
+                <div style="width:100%; font-size:12px; color:var(--text-secondary);">背景图操作</div>
+                <button id="btnCropDetailBg" class="dbg-btn">✂️ 裁剪</button>
+                <button id="btnDetailBgCleanCache" class="dbg-btn" style="margin-left:auto; margin-right:24px;" title="查看/清理缓存图片">🧹 清理缓存</button>
+                <div id="detailBgCacheInfo" style="width:100%; font-size:12px; color:var(--text-secondary);">缓存信息读取中…</div>
+            </div>
+            <div id="detailBgFitWrap" style="display:none; margin:0 0 8px;">
+                <div style="font-size:12px; color:var(--text-secondary); margin-bottom:4px;">背景图显示方式</div>
+                <div id="detailBgFitBtns" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+            </div>
+            <!-- 「🖼️ 选择图片 / 清除」始终留在面板最底部（和背景颜色 / 文字颜色两页的位置一致） -->
+            <div id="detailBgImageRow" style="display:flex; gap:8px; margin-top:4px; flex-wrap:wrap;">
+                <button id="btnSelectDetailBgImage2" class="dbg-btn primary">🖼️ 选择图片</button>
+                <button id="btnClearDetailBg2" class="dbg-btn">清除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 背景图裁剪（✂️）：常驻裁剪框 + 图片可拖动/缩放，框内区域裁成新图 ===== -->
+    <div id="cropOverlay" class="crop-overlay hidden">
+        <div class="crop-dialog">
+            <div class="crop-header">
+                <span>✂️ 裁剪背景图</span>
+                <button id="cropCloseBtn" title="关闭（不保存）">✕</button>
+            </div>
+            <div class="crop-stage" id="cropStage">
+                <img id="cropImage" alt="" draggable="false" />
+                <div id="cropFrame" class="crop-frame hidden">
+                    <span class="crop-grid"></span>
+                    <!-- 整条边都能拉（不只是中间那个小方块） -->
+                    <span class="crop-edge e-n" data-h="n"></span>
+                    <span class="crop-edge e-e" data-h="e"></span>
+                    <span class="crop-edge e-s" data-h="s"></span>
+                    <span class="crop-edge e-w" data-h="w"></span>
+                    <span class="crop-handle h-nw" data-h="nw"></span>
+                    <span class="crop-handle h-n" data-h="n"></span>
+                    <span class="crop-handle h-ne" data-h="ne"></span>
+                    <span class="crop-handle h-e" data-h="e"></span>
+                    <span class="crop-handle h-se" data-h="se"></span>
+                    <span class="crop-handle h-s" data-h="s"></span>
+                    <span class="crop-handle h-sw" data-h="sw"></span>
+                    <span class="crop-handle h-w" data-h="w"></span>
+                </div>
+            </div>
+            <div class="crop-bar">
+                <span class="crop-info" id="cropInfo">正在读取图片…</span>
+                <span class="crop-ratios" id="cropRatioBtns"></span>
+                <label class="crop-keepinside" title="锁定：框只能框在图片里，图片也拖不出裁剪区"><input type="checkbox" id="cropLockChk" /> 🔒 锁定裁剪框</label>
+            </div>
+            <div class="crop-footer">
+                <button id="cropZoomOutBtn" class="btn-cancel" title="缩小图片">➖</button>
+                <button id="cropZoomInBtn" class="btn-cancel" title="放大图片">➕</button>
+                <button id="cropFitBtn" class="btn-cancel" title="图片铺满裁剪区（选着比例时框按该比例放到最大）">🖼️ 居中最大</button>
+                <button id="cropWholeBtn" class="btn-cancel" title="图片完整显示、框刚好框住整张图（＝裁出原图本身）">🔳 原图</button>
+                <button id="cropCancelBtn" class="btn-cancel">取消</button>
+                <button id="cropOkBtn" class="btn-save">裁剪并应用</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 框选（Windows 11 风格灰色选框） ===== -->
+    <div id="boxSelect"></div>
+
+    <!-- ===== Toast ===== -->
+    <div class="toast hidden" id="toast"></div>
+
+    <!-- 开屏：纯 HTML/CSS，先于脚本显示（renderer.js 就绪后淡出；以后其它加载场景可复用 showSplash） -->
+    <div id="splash">
+        <div class="splash-inner">
+            <img class="splash-logo-img" src="icon-small.png" alt="" onerror="this.style.display='none'; var t=this.nextElementSibling; if (t) t.style.display='block';" />
+            <div class="splash-logo" style="display:none;">📚</div>
+            <div class="splash-title">小说设定管理器</div>
+            <div class="splash-sub" id="splashSub">正在启动…</div>
+            <div class="splash-ring"></div>
+        </div>
+    </div>
+    <script src="renderer.js"></script>
+</body>
+</html>

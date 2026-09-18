@@ -1,0 +1,748 @@
+/* ===== 全局变量 ===== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+    --bg-primary: #f0f2f5;
+    --bg-secondary: #ffffff;
+    --text-primary: #1a1a2e;
+    --text-secondary: #666;
+    --border-color: rgba(0,0,0,0.06);
+    --shadow: 0 8px 24px rgba(0,0,0,0.10);
+    --primary: #5b7cfa;
+  --detail-selection-bg: rgba(91, 124, 250, 0.22);
+    --primary-light: #e8ecff;
+    --card-radius: 16px;
+    --transition: 0.2s ease;
+    --toolbar-bg: rgba(255,255,255,0.75);
+    --titlebar-height: 32px;
+}
+body { font-family: 'Segoe UI', 'PingFang SC', Roboto, sans-serif; background: var(--bg-primary); height: 100vh; overflow: hidden; }
+/* 彻底杜绝横向滚动条：窗口层、画布层都不横向滚动；
+   并且把画布横向滚动条的外观也隐藏（保留"不显示"，符合"不删掉但别让它露出来"） */
+html, body { overflow-x: hidden; }
+body.dark {
+    --bg-primary: #1a1a2e;
+  --detail-selection-bg: rgba(91, 124, 250, 0.38);
+    --bg-secondary: #2a2a3e;
+    --text-primary: #e0e0e0;
+    --text-secondary: #aaa;
+    --border-color: rgba(255,255,255,0.08);
+    --shadow: 0 8px 24px rgba(0,0,0,0.4);
+    --toolbar-bg: rgba(30,30,46,0.85);
+}
+input, textarea, [contenteditable="true"] { user-select: text !important; }
+
+/* ===== 自定义标题栏 ===== */
+#customTitlebar {
+    position: fixed;              /* 固定在视口顶部，彻底脱离文档流：内容再多也挤不动它 */
+    top: 0; left: 0; right: 0;
+    height: var(--titlebar-height);
+    background: rgba(240, 242, 245, 0.78);   /* 灰色半透明毛玻璃 */
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    -webkit-app-region: drag;
+    user-select: none;
+    flex-shrink: 0;
+    z-index: 8000;   /* 高于所有弹窗/面板，始终位于最顶层 */
+    transform: translateZ(0);
+    will-change: transform;
+}
+body.dark #customTitlebar {
+    background: rgba(26, 26, 46, 0.85);   /* 深色模式：深灰半透明毛玻璃 */
+}
+#titlebarLeft {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+#titlebarAppName {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+#titlebarHelp, #titlebarTheme, #titlebarReset {
+    background: none;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 0 4px;
+    -webkit-app-region: no-drag;
+    transition: var(--transition);
+}
+#titlebarHelp:hover, #titlebarTheme:hover, #titlebarReset:hover {
+    color: var(--primary);
+    transform: scale(1.05);
+}
+#titlebarRight {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    -webkit-app-region: no-drag;
+}
+/* 工具按钮（主题 / 设置 / 帮助）：放在窗口按钮左侧，与窗口控制区分开 */
+#titlebarTools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-right: 10px;
+    -webkit-app-region: no-drag;
+}
+#titlebarRight > button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    width: 34px;
+    height: 24px;
+    padding: 0;
+    border-radius: 0;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#titlebarRight > button:hover {
+    background: var(--border-color);
+    color: var(--text-primary);
+}
+#titlebarRight > button svg { display: block; }
+#titlebarClose:hover {
+    background: #e74c3c;
+    color: #fff;
+}
+
+/* ===== 工具栏（顶部下移） ===== */
+.toolbar {
+    position: relative;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 24px;
+    background: var(--toolbar-bg);   /* 恢复毛玻璃美化 */
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border-color);
+    height: 60px;
+    gap: 12px;
+    flex-shrink: 0;
+}
+.toolbar .brand { display: flex; align-items: center; gap: 4px; font-size: 18px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+.toolbar .brand .file-indicator { display: none; font-size: 15px; line-height: 1; color: var(--text-primary); margin-left: 2px; cursor: default; }
+#homeStats { color: var(--text-secondary); }
+#btnExitProject, #btnBackLevel, #btnHomeRoot, #btnToggleDrag, #btnCanvasBg {
+    background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-secondary); padding: 0 8px; transition: var(--transition);
+}
+#btnExitProject:hover, #btnBackLevel:hover, #btnHomeRoot:hover, #btnToggleDrag:hover, #btnCanvasBg:hover {
+    color: var(--primary); transform: scale(1.05);
+}
+.actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; position:relative; }
+.actions button { display:flex; align-items:center; gap:4px; padding:6px 14px; border:none; border-radius:30px; font-size:13px; font-weight:500; cursor:pointer; transition:var(--transition); background:transparent; color:var(--text-secondary); border:1px solid transparent; white-space:nowrap; }
+.actions button:hover { background:var(--primary-light); color:var(--primary); }
+.actions button.primary { background:var(--primary); color:#fff; }
+.actions button.primary:hover { background:#4a6be8; transform:scale(1.02); }
+.actions button.active { background:var(--primary-light); border-color:var(--primary); color:var(--primary); }
+.actions button.danger { color:#e74c3c; }
+.actions button.danger:hover { background:#fde8e5; }
+
+/* ===== 书库页 ===== */
+#homeView { height:100vh; display:flex; flex-direction:column; padding-top:32px; }
+.home-content { flex:1; padding:30px 40px; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:24px; align-content:start; }
+.project-card {
+    background: var(--bg-secondary);
+    border-radius: var(--card-radius);
+    padding: 20px 22px 18px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border-color);
+    transition: var(--transition);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+}
+.project-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,0.12); }
+.project-card .card-title { font-size: 20px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+.project-card .card-meta { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; display: flex; gap: 16px; }
+.project-card .card-actions { display: flex; gap: 8px; margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 12px; }
+.project-card .card-actions button { padding: 6px 12px; border: none; border-radius: 30px; font-size: 13px; cursor: pointer; transition: var(--transition); white-space: nowrap; }
+.project-card .card-actions .open-btn { background: var(--primary); color: #fff; }
+.project-card .card-actions .open-btn:hover { background: #4a6be8; }
+.project-card .card-actions .del-btn { background: #fee; color: #e74c3c; }
+.project-card .card-actions .del-btn:hover { background: #fdd; }
+.project-card .card-actions .rename-btn { background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border-color); }
+.project-card .card-actions .rename-btn:hover { background: var(--primary-light); color: var(--primary); }
+
+/* ===== 画布 ===== */
+#canvas { position: relative; background: var(--bg-primary); overflow-y: auto; overflow-x: hidden; transition: background 0.3s; user-select: none; -webkit-user-select: none; }
+/* 画布的横向滚动条：完全不显示（即使出现滚动区也看不到） */
+#canvas::-webkit-scrollbar:horizontal { height: 0 !important; }
+/* 鼠标光标：画布所有层默认箭头；词条（可移动）悬停=手、拖动=抓手；锁定后词条也变箭头 */
+#canvas, #canvasContent, #canvas svg { cursor: default !important; }
+.node { cursor: grab !important; }
+.node:active { cursor: grabbing !important; }
+body.locked .node, body.locked .node * { cursor: default !important; }
+#canvasContent { position: relative; min-width: 100%; min-height: 100%; }
+#connections-svg { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:1; }
+.conn-line { pointer-events: none; transition: stroke-width 0.15s; }
+.conn-hit { pointer-events: stroke; cursor: pointer; stroke: transparent; fill: none; }
+.conn-arrow { pointer-events: auto; cursor: pointer; }
+
+/* ===== 面包屑 ===== */
+#breadcrumbBar { background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); padding: 6px 24px; min-height: 38px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#breadcrumbBar span { cursor: pointer; color: var(--text-secondary); font-size: 14px; transition: var(--transition); }
+#breadcrumbBar span:hover { color: var(--primary); text-decoration: underline; }
+#breadcrumbBar .current { color: var(--text-primary); font-weight: 600; cursor: default; text-decoration: none; }
+#breadcrumbBar .sep { color: var(--border-color); cursor: default; }
+
+/* ===== 节点卡片 ===== */
+.node {
+    position: absolute; z-index:10; min-width:160px; max-width:260px;
+    background: var(--bg-secondary); border-radius: var(--card-radius);
+    box-shadow: var(--shadow); padding:12px 16px 10px;
+    cursor: grab !important; transition: box-shadow 0.25s, transform 0.15s, background 0.3s, left 0.15s ease, top 0.15s ease;
+    border: 1px solid var(--border-color);
+}
+.node.dragging { transition: none !important; }  /* 拖拽时禁用位移动画，保证实时跟手 */
+/* 剪切待粘贴：半透明显示（像 Windows 的剪切效果），Ctrl+V 后才真正移走 */
+.node.cut-pending { opacity: 0.55; }
+/* 引用词条：只用标题旁的 🔗 图标标识（不加边框/小三角 —— 会让卡片观感变重） */
+/* 词条中间那条分隔线：固定用一个"在白/浅色卡片上都看得见"的颜色（只做美化，不关联任何功能） */
+.node .node-divider { border: none; border-top: 1px solid rgba(0, 0, 0, 0.14); margin: 6px 0 4px 0; }
+body.dark .node .node-divider { border-top-color: rgba(0, 0, 0, 0.22); }
+.node:hover { box-shadow: 0 12px 36px rgba(0,0,0,0.15); }
+.node:active { cursor: grabbing; }   /* 注意：这里不能加 transform 缩放，否则按下时按钮会跟着位移，导致"只有点中间才点得到" */
+.node .node-title { position:relative; font-size:16px; font-weight:700; color:var(--text-primary); word-break:break-word; display:flex; align-items:center; justify-content:center; gap:6px; }
+.node .node-title .color-dot { position:absolute; left:0; top:50%; transform:translateY(-50%); display:inline-block; width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.node .node-summary { font-size:13px; color:var(--text-secondary); line-height:1.4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; padding-right:0; text-align:center; }
+.node .node-number { font-size:10px; color:var(--text-secondary); opacity:0.4; margin-top:4px; }
+.node .node-hint { font-size:11px; color:var(--text-secondary); opacity:0.5; text-align:center; margin-top:2px; }
+/* 子词条数量：绝对定位悬浮在卡片下方外侧（不改变卡片宽高，避免影响连接线与布局）
+   注意：它在卡片外面、直接落在画布背景上，所以颜色必须跟随主题（不能用词条文字色，
+   否则夜间模式下深色字会看不见） */
+.node .node-childcount { position:absolute; left:0; right:0; bottom:-17px; font-size:11px; color:var(--text-secondary); text-align:center; opacity:0.6; transition:opacity 0.2s; pointer-events:none; white-space:nowrap; }
+body.dark .node .node-childcount { color: var(--text-primary); }
+.node:hover .node-childcount { opacity:1; }
+.node.dragging .node-childcount { opacity:0 !important; }  /* 拖拽移动时不显示 */
+.node .node-actions { position:absolute; top:6px; right:8px; display:flex; gap:2px; opacity:0; transition:opacity 0.2s; z-index:6; }
+.node:hover .node-actions { opacity:1; }
+.node .node-actions button { background:rgba(255,255,255,0.6); border:none; border-radius:20px; width:24px; height:24px; font-size:12px; cursor:pointer; transition:var(--transition); color:#888; display:flex; align-items:center; justify-content:center; }
+.node .node-actions button:hover { background:#fee; color:#e74c3c; }
+.node .node-actions button.edit-btn:hover { background:var(--primary-light); color:var(--primary); }
+.node.highlight { outline:3px solid var(--primary); outline-offset:3px; box-shadow: 0 0 0 8px rgba(91,124,250,0.15); }
+.node.connecting { outline:3px dashed var(--primary); outline-offset:3px; }
+.node.selected { outline:3px solid #e74c3c; outline-offset:3px; box-shadow: 0 0 0 8px rgba(231,76,60,0.15); }
+.node.boxing { outline:3px solid rgba(128,128,128,0.8); outline-offset:2px; }
+
+/* ===== 详情页 ===== */
+#detailPanel { display: flex; width: 400px; min-width: 200px; max-width: 600px; background: var(--bg-secondary); border-left: 1px solid var(--border-color); flex-direction: column; overflow: hidden; position: relative; transition: background-image 0.3s; }
+/* 详情页底部左侧的宽度拖拽手柄：只有这里可拖（避免误触其他地方） */
+#detailResizeHandle:hover, #detailResizeHandle.active { color: var(--primary) !important; background: var(--bg-primary); }
+#detailResetWidthBtn:hover { color: var(--primary); }
+#detailPanel .placeholder { color: #bbb; }
+/* 详情页 placeholder 伪元素：不写入内容、不改变文字颜色，聚焦时隐藏 */
+#detailPanel [contenteditable][data-placeholder]::before {
+    content: attr(data-placeholder);
+    color: #bbb;
+    pointer-events: none;
+}
+#detailPanel [contenteditable][data-placeholder]:focus::before { content: none; }
+body.dark #detailPanel [contenteditable][data-placeholder]::before { color: #b8b8b8; }
+#detailPanel #detailSummary:focus, #detailPanel #detailBody:focus { border-bottom-color: var(--primary); }
+#detailPanel .internal-link { color: var(--primary); text-decoration: underline; cursor: pointer; }
+#detailPanel .internal-link:hover { opacity: 0.7; }
+
+/* ===== 模态框 ===== */
+/* 弹窗默认居中：改名 / 帮助 / 各种确认框（都短，居中看着最稳当） */
+.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.3); z-index:7000; display:flex; align-items:center; justify-content:center; padding:20px; animation:fadeIn 0.2s; }
+/* .top：贴偏上出现 —— 目前只有 ⚙️ 设置面板用它（它内容最长：展开「🖥️ 全局设置」能顶得很高，
+   居中时一展开就上下一起撑、顶边往上蹿；贴偏上以后展开只往下长，顶边不动，
+   视线和鼠标都不用跟着跑（上面留 6vh 一点余量，不至于贴着屏幕边））。
+   ⚠ 它是"变体类"：类名由 openModal 的 opts.top 决定，没带 .top 的弹窗一律不受影响 ——
+     想只调这份面板的位置，改这一条就够了，不会连带改名 / 帮助 / 确认框。 */
+.modal-overlay.top { align-items: flex-start; padding: 6vh 20px 5vh; }
+/* z-index 7000：设置/帮助弹窗永远在最上层（高于裁剪弹窗 6500 与背景悬浮窗 6000），
+   只低于标题栏 8000，这样弹窗卡住时还能点到窗口的 ✕ / 最小化 */
+.modal-overlay.hidden { display:none; }
+/* 设置 / 帮助类弹窗：遮罩完全透明（不模糊、不压暗），方便一边看界面一边操作 */
+.modal-overlay.plain { background: transparent; }
+/* 帮助弹窗内文字可选中复制（帮助里常要复制快捷键、路径） */
+.modal, .modal * { user-select: text; -webkit-user-select: text; }
+/* 帮助弹窗：各分类可折叠（点标题展开/收起） */
+#helpContent details { border-bottom: 1px solid var(--border-color); padding: 2px 0; }
+#helpContent summary { cursor: pointer; font-weight: 700; font-size: 15px; color: var(--text-primary); padding: 9px 0; list-style: none; }
+#helpContent summary::-webkit-details-marker { display: none; }
+#helpContent summary::before { content: '▶'; font-size: 11px; color: var(--text-secondary); font-weight: 400; margin-right: 6px; display: inline-block; }
+#helpContent details[open] > summary::before { content: '▼'; }
+#helpContent details > ul { margin: 2px 0 12px; }
+/* 帮助页搜索框：sticky 悬浮 —— 往下翻时它和右边的「全部展开」浮在正文上方，正文从它们下面穿过。
+   ⚠ 它自己一点底色都不铺（不铺白、不铺毛玻璃、不做 ::before 垫层、不加下边线）：
+     给它垫一层"独立背景"就会变成横贯弹窗的一条色带 —— 也就是之前那条白带
+     （以前那层底还会顺着弹窗内边距往四周铺 40px，越铺越宽，就是"白框更大了"）。
+   ⚠ 它本来就够看了：输入框自带一颗实底圆角药丸（background:var(--bg-primary)），右边的「全部展开」也是
+     同一颗实底药丸（只有它们自己能盖住底下的正文）；中间和四周的留白保持透明即可，不铺任何"独立背景"。
+   ⚠ 行内不给上下内边距：行高≈控件高，正文能从缝隙里透出来的面积最小。
+   ⚠ 它待在滚动区里面（sticky），所以不占正文高度；做成"不参与滚动的工具条"就会白吃掉一行。 */
+#helpContent { padding:0; display:flex; flex-direction:column; overflow:hidden; }
+#helpContent .modal-header { padding:28px 32px 0; flex:0 0 auto; }   /* 标题行（含 🔄 重启 / ✕）固定住，别跟着滚 */
+#helpSearchBar { position:sticky; top:0; z-index:5; }                /* 悬浮：滚多少它都吸在滚动区顶沿 */
+/* 从设置里点「❓」跳进帮助某一节时是 scrollIntoView({block:'start'}) —— 留出悬浮搜索框那点高度，
+   免得那一节的标题正好落在搜索框底下被压住（44px ≈ 搜索行 30px + 下面 12px 间距） */
+#helpContent details { scroll-margin-top: 44px; }
+#helpScrollBody { padding:0 32px 24px; overflow-y:auto; flex:1 1 auto; min-height:0; }
+.modal { background:var(--bg-secondary); border-radius:24px; width:520px; max-width:94vw; max-height:85vh; padding:28px 32px 24px; box-shadow:0 40px 80px rgba(0,0,0,0.25); overflow-y:auto; animation:slideUp 0.25s; }
+/* 设置 / 帮助类弹窗：毛玻璃半透明（能透出后面的界面，配合透明遮罩更协调） */
+.modal.glass { background: rgba(255,255,255,0.72); backdrop-filter: blur(18px) saturate(1.15); -webkit-backdrop-filter: blur(18px) saturate(1.15); }
+body.dark .modal.glass { background: rgba(30,30,44,0.78); }
+@keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+@keyframes slideUp { from{transform:translateY(30px); opacity:0;} to{transform:translateY(0); opacity:1;} }
+.modal .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+.modal .modal-header h2 { font-size:20px; font-weight:700; color:var(--text-primary); }
+.modal .modal-header .close-btn { background:none; border:none; font-size:26px; cursor:pointer; color:#aaa; transition:var(--transition); }
+.modal .modal-header .close-btn:hover { color:var(--text-primary); transform:rotate(90deg); }
+.modal label { font-size:13px; font-weight:600; color:var(--text-secondary); display:block; margin-top:14px; margin-bottom:4px; }
+.modal input, .modal textarea { width:100%; padding:8px 12px; border:1.5px solid var(--border-color); border-radius:10px; font-size:14px; font-family:inherit; transition:var(--transition); background:var(--bg-primary); color:var(--text-primary); }
+.modal input:focus, .modal textarea:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 4px rgba(91,124,250,0.08); }
+/* 但勾选框不能跟着上面那条"输入框拉满一行"（width:100% + 内边距）走 —— 一拉满就成了一整条灰盒子，
+   字还会被顶到右边挤成竖排（初始化确认框的勾选框踩过这个坑） */
+.modal input[type="checkbox"] { width:16px; height:16px; padding:0; border:none; background:none; accent-color:var(--primary); flex:0 0 auto; }
+.modal textarea { min-height:70px; resize:vertical; }
+.modal .modal-footer { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; padding-top:16px; border-top:1px solid var(--border-color); }
+.modal .modal-footer button { padding:8px 24px; border:none; border-radius:30px; font-size:14px; font-weight:600; cursor:pointer; transition:var(--transition); }
+.modal .modal-footer .btn-save { background:var(--primary); color:#fff; }
+.modal .modal-footer .btn-save:hover { background:#4a6be8; transform:scale(1.02); }
+.modal .modal-footer .btn-delete { background:#fee; color:#e74c3c; }
+.modal .modal-footer .btn-delete:hover { background:#fdd; }
+.modal .modal-footer .btn-cancel { background:var(--border-color); color:var(--text-secondary); }
+.modal .modal-footer .btn-cancel:hover { background:#ddd; }
+/* 弹窗正文里的"列表式按钮"（设置面板的分项按钮）：统一圆角、整行可点 */
+.modal .modal-body .btn-cancel { width:100%; text-align:left; padding:10px 14px; line-height:1.5; background:var(--border-color); color:var(--text-primary); border:none; border-radius:12px; cursor:pointer; font-size:13px; font-weight:600; transition:var(--transition); }
+.modal .modal-body .btn-cancel:hover { background:#ddd; }
+/* 设置面板里的"一行一项"：左边名称、右边开关 / 小按钮。要点① 右边那组不收缩
+   （不然「浅色」「开」会被挤成竖排，一个字占一行）；② 名称按词断行，宁可窄点也不竖着排 */
+.modal .modal-body .gs-name { font-size:13px; color:var(--text-secondary); }
+.modal .modal-body .gs-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.modal .modal-body .gs-row .gs-name { flex:1 1 auto; min-width:0; word-break:keep-all; }
+.modal .modal-body .gs-row .gs-ctrl { display:flex; align-items:center; gap:8px; flex:0 0 auto; white-space:nowrap; }
+.modal .modal-body .gs-row .gs-ctrl .gs-val { font-size:12px; color:var(--text-secondary); }
+/* 行内小按钮（恢复默认 / 清空 / 插入…）：覆盖上面那条"整行按钮"的 width:100%，
+   顺便统一宽度 —— 同一列里几个「恢复默认」要一样长 */
+.modal .modal-body .btn-mini { width:auto; flex:0 0 auto; min-width:78px; text-align:center; padding:3px 12px; font-size:12px; white-space:nowrap; }
+.modal .modal-body .btn-auto { width:auto; flex:0 1 auto; text-align:center; }
+.modal .checklist { max-height:200px; overflow-y:auto; border:1px solid var(--border-color); border-radius:10px; padding:10px; margin-top:8px; }
+.modal .checklist label { display:flex; align-items:center; gap:8px; padding:4px 0; font-weight:400; font-size:14px; color:var(--text-primary); margin:0; }
+/* 设置面板里的小开关（如「自动保存」）：比一排二选一按钮省地方，也更像开关 */
+.modal .switch { position:relative; display:inline-flex; align-items:center; width:42px; height:24px; flex:0 0 auto; margin:0; cursor:pointer; }
+.modal .switch input { position:absolute; opacity:0; width:0; height:0; margin:0; }
+.modal .switch .track { position:absolute; inset:0; background:#cbd2de; border-radius:24px; transition:var(--transition); }
+.modal .switch .knob { position:absolute; top:3px; left:3px; width:18px; height:18px; background:#fff; border-radius:50%; box-shadow:0 1px 3px rgba(0,0,0,0.25); transition:var(--transition); }
+.modal .switch input:checked ~ .track { background:var(--primary); }
+.modal .switch input:checked ~ .knob { left:21px; }
+.modal .switch:hover .knob { box-shadow:0 2px 6px rgba(0,0,0,0.3); }
+body.dark .modal .switch .track { background:#525a6b; }
+
+/* ===== 背景图裁剪弹窗（✂️）：常驻裁剪框 + 图片可拖动/缩放 ===== */
+/* 层级：浮动面板(背景悬浮窗) 6000 < 裁剪弹窗 6500 < 设置/帮助弹窗 7000 < 标题栏 8000 */
+.crop-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:6500; display:flex; align-items:center; justify-content:center; }
+.crop-overlay.hidden { display:none; }
+.crop-dialog { background:var(--bg-secondary); border-radius:18px; width:min(900px, 94vw); max-height:94vh; display:flex; flex-direction:column; padding:16px 18px 14px; box-shadow:0 30px 70px rgba(0,0,0,0.35); }
+.crop-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.crop-header span { font-size:16px; font-weight:700; color:var(--text-primary); }
+/* 右上角关闭：默认和别的弹窗一样是灰色；鼠标移上去才变红底 + 白 ✕、同时整个 ✕ 转 90° */
+/* 关闭叉号：默认跟别的弹窗一样是灰色（红色只在鼠标指上去时才亮，常亮太抢眼） */
+.crop-header button { background:none; border:none; width:34px; height:34px; line-height:1; font-size:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#aaa; transition:var(--transition); }
+.crop-header button:hover { background:#e5484d; color:#fff; transform:rotate(90deg); }
+/* 舞台：图片绝对定位（可拖动/缩放），裁剪框常驻其上；overflow:hidden 让框外遮罩只压暗舞台内的图片 */
+/* 四角是直角：圆角会把图片的四个角裁掉（贴边的内容会被挡住） */
+.crop-stage { position:relative; height:58vh; min-height:260px; background:#e9e9ee; border-radius:0; overflow:hidden; user-select:none; cursor:grab; }
+body.dark .crop-stage { background:#232329; }
+.crop-stage img { position:absolute; left:0; top:0; max-width:none; max-height:none; user-select:none; -webkit-user-drag:none; transform-origin:0 0; will-change:transform; }
+/* 裁剪框：框内透明（露出图片），框外用超大 box-shadow 压暗（调淡一点，既能看清保留范围又不至于太黑） */
+.crop-frame { position:absolute; border:1.5px solid #fff; box-shadow:0 0 0 9999px rgba(0,0,0,0.38); cursor:move; }
+.crop-frame.hidden { display:none; }
+.crop-grid { position:absolute; inset:0; pointer-events:none; opacity:0.5;
+    background-image:
+        linear-gradient(to right, transparent calc(33.33% - 0.5px), #fff calc(33.33% - 0.5px), #fff calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px), transparent calc(66.66% - 0.5px), #fff calc(66.66% - 0.5px), #fff calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px)),
+        linear-gradient(to bottom, transparent calc(33.33% - 0.5px), #fff calc(33.33% - 0.5px), #fff calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px), transparent calc(66.66% - 0.5px), #fff calc(66.66% - 0.5px), #fff calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px));
+}
+.crop-handle { position:absolute; width:12px; height:12px; background:#fff; border:1px solid rgba(0,0,0,0.35); border-radius:2px; z-index:2; }
+.crop-handle.h-nw { left:-6px; top:-6px; cursor:nwse-resize; }
+.crop-handle.h-n  { left:50%; top:-6px; margin-left:-6px; cursor:ns-resize; }
+.crop-handle.h-ne { right:-6px; top:-6px; cursor:nesw-resize; }
+.crop-handle.h-e  { right:-6px; top:50%; margin-top:-6px; cursor:ew-resize; }
+.crop-handle.h-se { right:-6px; bottom:-6px; cursor:nwse-resize; }
+.crop-handle.h-s  { left:50%; bottom:-6px; margin-left:-6px; cursor:ns-resize; }
+.crop-handle.h-sw { left:-6px; bottom:-6px; cursor:nesw-resize; }
+.crop-handle.h-w  { left:-6px; top:50%; margin-top:-6px; cursor:ew-resize; }
+/* 整条边都能拉（跨在边框上，四个角的方块在上面优先响应） */
+.crop-edge { position:absolute; z-index:1; }
+.crop-edge.e-n { left:14px; right:14px; top:-5px; height:10px; cursor:ns-resize; }
+.crop-edge.e-s { left:14px; right:14px; bottom:-5px; height:10px; cursor:ns-resize; }
+.crop-edge.e-w { top:14px; bottom:14px; left:-5px; width:10px; cursor:ew-resize; }
+.crop-edge.e-e { top:14px; bottom:14px; right:-5px; width:10px; cursor:ew-resize; }
+/* 不换行 + 高度写死（42px＝两行提示的高度）：以前是 flex-wrap + space-between，左边那行提示一变长
+   （选比例、勾开关、结果像素数变大都会变长），右边按钮就换行跳到左边，比例那一行还会上下抖一格 */
+.crop-bar { display:flex; align-items:center; gap:10px; margin:10px 2px; height:42px; }
+/* flex-basis:0 → 提示自己吸收多余宽度，不会去挤右边的比例按钮（一挤就出横向滚动条，按钮被顶高一格） */
+.crop-info { flex:1 1 0; min-width:0; max-height:100%; overflow:hidden; font-size:12px; color:var(--text-secondary); line-height:1.6; }
+.crop-ratios { display:flex; align-items:center; gap:6px; flex:0 1 auto; min-width:0; overflow-x:auto; scrollbar-width:thin; }
+/* 比例按钮本身：胶囊形，选中的那个高亮 */
+.crop-ratios button { padding:4px 12px; border:1px solid var(--border-color); border-radius:20px; background:var(--bg-primary); color:var(--text-primary); font-size:12px; cursor:pointer; transition:var(--transition); }
+.crop-ratios button.active { border-color:var(--primary); background:var(--primary-light); color:var(--primary); font-weight:600; }
+/* 🔒 锁定裁剪框（裁剪弹窗右侧的开关，位置固定在最右边） */
+.crop-keepinside { display:flex; align-items:center; gap:6px; flex:0 0 auto; font-size:12px; color:var(--text-secondary); cursor:pointer; user-select:none; white-space:nowrap; }
+.crop-keepinside:hover { color:var(--text-primary); }
+.crop-keepinside input { margin:0; cursor:pointer; accent-color:var(--primary); }
+.crop-footer { display:flex; justify-content:flex-end; align-items:center; gap:10px; }
+.crop-footer button { padding:8px 18px; border:none; border-radius:30px; font-size:13px; font-weight:600; cursor:pointer; transition:var(--transition); }
+.crop-footer #cropOkBtn { background:var(--primary); color:#fff; }
+.crop-footer #cropOkBtn:hover { background:#4a6be8; }
+.crop-footer #cropOkBtn:disabled { background:#c3cad8; cursor:not-allowed; }
+.crop-footer .btn-cancel { background:var(--border-color); color:var(--text-secondary); }
+.crop-footer .btn-cancel:hover { background:#ddd; }
+
+/* ===== 回收站 ===== */
+.trash-panel {
+    position: fixed;
+    bottom: 24px;
+    right: 0px;
+    width: 400px;               /* 与详情页宽度一致 */
+    max-height: 500px;
+    background: var(--bg-secondary);
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    transition: transform 0.3s, opacity 0.3s;
+}
+.trash-panel.hidden {
+
+    transform: translateY(30px);
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ===== 书籍回收站（独立面板，宽度与详情页一致） ===== */
+.book-trash-panel {
+    position: fixed;
+    bottom: 24px;
+    right: 0px;
+    width: 400px;               /* 与详情页宽度一致 */
+    max-height: 500px;
+    background: var(--bg-secondary);
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    transition: transform 0.3s, opacity 0.3s;
+}
+.book-trash-panel.hidden {
+    transform: translateY(30px);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.trash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--border-color);
+    font-weight: 600;
+    color: var(--text-primary);
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.trash-header button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    transition: var(--transition);
+}
+.trash-header button:hover {
+    background: var(--border-color);
+}
+.trash-header .danger {
+    color: #e74c3c;
+}
+.trash-header .danger:hover {
+    background: #fde8e5;
+}
+.trash-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    max-height: 350px;
+}
+.trash-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--bg-primary);
+    margin-bottom: 4px;
+    font-size: 14px;
+    color: var(--text-primary);
+    min-height: 40px;
+}
+.trash-item input[type="checkbox"] {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+}
+.trash-item .trash-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.trash-item .trash-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.trash-item .trash-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    transition: var(--transition);
+}
+.trash-item .trash-actions button:hover {
+    background: var(--border-color);
+}
+.trash-item .trash-actions .restore-btn {
+    color: var(--primary);
+}
+.trash-item .trash-actions .restore-btn:hover {
+    background: var(--primary-light);
+}
+.trash-item .trash-actions .delete-btn {
+    color: #e74c3c;
+}
+.trash-item .trash-actions .delete-btn:hover {
+    background: #fde8e5;
+}
+
+/* ===== 多选栏 ===== */
+#multiselectBar {
+    display: none;
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-secondary);
+    border-radius: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    padding: 10px 24px;
+    z-index: 300;   /* 底部全选栏：始终高于词条层（词条封顶 90） */
+    align-items: center;
+    gap: 16px;
+    border: 1px solid var(--border-color);
+}
+#multiselectBar.visible {
+    display: flex;
+}
+
+/* ===== 空状态 ===== */
+.empty-state { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; color:#bbb; pointer-events:none; z-index:0; }
+.empty-state .icon { font-size:48px; margin-bottom:10px; opacity:0.5; }
+.empty-state p { font-size:16px; line-height:1.7; }
+.empty-state .hint { font-size:13px; color:#ccc; margin-top:4px; }
+
+/* ===== Toast ===== */
+.toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.75);
+    color: #fff;
+    padding: 10px 28px;
+    border-radius: 40px;
+    font-size: 14px;
+    z-index: 9999;
+    backdrop-filter: blur(8px);
+    animation: toastIn 0.3s ease;
+    pointer-events: none;
+}
+.toast.hidden {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+    transition: 0.3s;
+}
+@keyframes toastIn {
+    from { opacity:0; transform: translateX(-50%) translateY(20px); }
+    to { opacity:1; transform: translateX(-50%) translateY(0); }
+}
+
+/* 详情页标题：超长时在固定高度内滚动查看（避免撑高布局导致顶部区域被挤出/消失） */
+#detailTitle { display: block; line-height: 24px; max-height: 120px; overflow-y: auto; }
+#detailSummary { line-height: 21px; max-height: 84px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+/* 详情页正文手动选择恢复默认蓝色（与标题/摘要一致）；搜索高亮用独立的 ::highlight 黄色，不受影响 */
+::highlight(find-current) { background: #ffb300; color: #1a1a2e; font-weight: 700; }
+::highlight(find-other) { background: rgba(255, 179, 0, 0.35); color: inherit; }
+#detailFindPrev, #detailFindNext { transition: var(--transition); }
+#detailFindPrev:hover, #detailFindNext:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+#jumpSearchBtn { transition: var(--transition); }
+#jumpSearchBtn:hover { background: var(--border-color); color: var(--text-primary); }
+
+/* ===== 滚动条（加粗） ===== */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c0c0c0; border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #a0a0a0; background-clip: padding-box; }
+#detailPanel::-webkit-scrollbar, #canvas::-webkit-scrollbar { width: 10px; height: 10px; }
+
+/* ===== 详情页背景浮动面板 ===== */
+.detail-bg-panel {
+    position: fixed;
+    width: 280px;
+    background: rgba(255,255,255,0.82);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    z-index: 6000;
+    font-size: 14px;
+    top: 110px;
+    right: 430px;
+}
+body.dark .detail-bg-panel {
+    background: rgba(42,42,62,0.88);
+}
+.detail-bg-panel.hidden { display: none; }
+.detail-bg-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; cursor: move; user-select: none;
+    border-bottom: 1px solid var(--border-color);
+    font-weight: 600; color: var(--text-primary);
+    border-radius: 14px 14px 0 0;
+}
+.detail-bg-header button {
+    background: none; border: none; cursor: pointer; font-size: 14px; color: var(--text-secondary);
+    padding: 2px 6px; border-radius: 6px;
+}
+.detail-bg-header button:hover { background: var(--border-color); }
+.detail-bg-body { padding: 12px 14px; }
+/* 颜色值输入框（#xxxxxx）：自己家的输入框 → 选中 / 复制 / 粘贴 / 剪切全都正常
+   （系统取色器那个小窗口是系统自己的窗口，它里面的输入框不吃剪贴板，所以这里得有一个能用的） */
+.color-hex {
+    width: 88px; box-sizing: border-box; padding: 3px 6px;
+    font-size: 13px; font-variant-numeric: tabular-nums;
+    color: var(--text-secondary); background: transparent;
+    border: 1px solid transparent; border-radius: 6px; outline: none;
+    user-select: text; -webkit-user-select: text; cursor: text;
+}
+.color-hex:hover { border-color: var(--border-color); }
+.color-hex:focus { border-color: var(--primary); color: var(--text-primary); background: var(--bg-primary); }
+/* 设置面板（.modal）里的那一个：.modal input 有 width:100%，这里得压回来，否则会把整行撑开 */
+.modal .color-hex {
+    width: 88px; padding: 3px 6px; border: 1px solid transparent; border-radius: 6px;
+    font-size: 13px; background: transparent; color: var(--text-secondary);
+}
+.modal .color-hex:hover { border-color: var(--border-color); }
+.modal .color-hex:focus { border-color: var(--primary); color: var(--text-primary); background: var(--bg-primary); box-shadow: none; }
+.dbg-btn {
+    background: none; border: 1px solid var(--border-color); border-radius: 30px;
+    padding: 6px 16px; font-size: 13px; cursor: pointer; color: var(--text-secondary);
+    transition: var(--transition);
+}
+.dbg-btn.primary { background: var(--primary); color: #fff; border: none; }
+.dbg-btn.primary:hover { background: #4a6be8; }
+.dbg-btn:hover { background: var(--border-color); }
+
+/* 帮助搜索：命中关键词高亮（用 CSS Custom Highlight API，不改 DOM） */
+#helpOverlay ::highlight(help-find) { background: #ffe58f; color: inherit; }
+body.dark #helpOverlay ::highlight(help-find) { background: #8a6d1f; color: #fff; }
+/* 回车翻到的"当前命中"：比其它命中更醒目 */
+#helpOverlay ::highlight(help-find-cur) { background: #ffb300; color: #1a1a2e; font-weight: 700; }
+body.dark #helpOverlay ::highlight(help-find-cur) { background: #c98a00; color: #fff; }
+/* 帮助搜索：命中关键词高亮 */
+#helpOverlay mark { background:#ffe58f; color:inherit; border-radius:3px; padding:0 1px; }
+body.dark #helpOverlay mark { background:#8a6d1f; color:#fff; }
+
+/* ===== 框选（Windows 11 风格灰白选框） ===== */
+#boxSelect {
+    position: fixed;
+    display: none;
+    border: 1px solid rgba(128,128,128,0.8);
+    background: rgba(190,190,190,0.25);
+    z-index: 120;   /* 框选框：始终高于词条层（词条封顶 90） */
+    pointer-events: none;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 800px) {
+    .toolbar { flex-wrap:wrap; height:auto; padding:8px 12px; gap:6px; }
+    .actions button span { display:none; }
+    .node { min-width:120px; max-width:180px; padding:10px 12px; }
+    .home-content { grid-template-columns:1fr; padding:16px; }
+    #detailPanel { width: 300px; min-width:150px; }
+    .trash-panel { width: 90%; right:5%; bottom:10px; max-height:60vh; }
+}
+/* ============================================================
+   详情页：拖动文字的"落点光标" + 选中色
+   ------------------------------------------------------------
+   · 落点光标：拖放过程中是实线（不闪）；松手之后像真光标一样闪
+   · 选中色：比浏览器默认的蓝淡一点（记事本 / VS Code 的观感），只作用于详情页三块可编辑区
+   ============================================================ */
+@keyframes detailDropCaretBlink {
+    0%, 45% { opacity: 0.95; }
+    46%, 100% { opacity: 0; }
+}
+#detailPanel #detailTitle::selection,
+#detailPanel #detailSummary::selection,
+#detailPanel #detailBody::selection {
+    background-color: var(--detail-selection-bg);
+}
+body.dark #detailPanel #detailTitle::selection,
+body.dark #detailPanel #detailSummary::selection,
+body.dark #detailPanel #detailBody::selection {
+    background-color: var(--detail-selection-bg);
+}
+/* ============================================================
+   开屏（splash）：默认**藏着** —— 启动快的话你根本看不到它
+   只有启动/加载超过 SPLASH_DELAY（400ms）还没就绪，renderer.js 才加上 .splash-show
+   以后再遇到"要等一会儿"的场景（打开大书 / 导入 / 备份）同样 showSplash() 复用
+   ============================================================ */
+#splash {
+    position: fixed; inset: 0; z-index: 100000;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-primary);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity .3s ease, visibility .3s ease;
+}
+#splash.splash-show { opacity: 1; visibility: visible; }
+#splash .splash-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; transform: translateY(-8px); }
+#splash .splash-logo-img { width: 48px; height: 48px; object-fit: contain; border-radius: 10px; animation: splashBreath 2.6s ease-in-out infinite; }
+#splash .splash-logo { font-size: 44px; line-height: 1; animation: splashBreath 2.4s ease-in-out infinite; }
+#splash .splash-title { font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: .5px; }
+#splash .splash-sub { font-size: 13px; color: var(--text-secondary); min-height: 18px; }
+#splash .splash-ring {
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 2.5px solid var(--border-color); border-top-color: var(--primary);
+    animation: splashSpin .9s linear infinite;
+}
+@keyframes splashSpin { to { transform: rotate(360deg); } }
+@keyframes splashBreath { 0%, 100% { opacity: .75; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
